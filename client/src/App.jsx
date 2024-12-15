@@ -7,10 +7,10 @@ function App() {
   const [count, setCount] = useState(0)
 
   // [ ] Minimal Design (DaisyUI)
-  // [ ]      * Log in
-  // [ ]    * User management ***
-  // [ ]    * Organization Form
-  // [ ]    * Bill Form
+  // [ ]       Log in
+  // [ ]     User management ***
+  // [ ]     Organization Form
+  // [ ]     Bill Form
   return (
     <>
       <div>
