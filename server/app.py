@@ -2,6 +2,8 @@ from flask import Flask, request
 from flask_restx import Resource, Api
 from flask_sqlalchemy import SQLAlchemy
 import os
+from models import db
+from datetime import datetime
 
 app = Flask(__name__)
 # database_uri = os.getenv("DEVELOPMENT_DATABASE_URI")
@@ -14,7 +16,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgress@localhost:5432/hbs_db'
 
 api = Api(app)
-db = SQLAlchemy(app)
+db.init_app(app)
 
 # [ ] User authentication using PYJWT
 @api.route("/bills")
