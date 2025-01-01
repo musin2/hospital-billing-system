@@ -2,7 +2,7 @@
 
 ### Project Description
 
- This project is responsible for keeping track of the bills of a particular organization or insurance company. It accumulates the bills of patients that belong to a particular organization to keep track of how much that organization owes the hospital. The system can then generate invoices for organizations whenever they want to pay after a certain period (e.g. monthly or quarterly).
+ This project is responsible for keeping track of the bills of a hospital's corporate clients. It accumulates the bills of patients that belong to a particular organization to keep track of how much that organization owes the hospital. The system can then generate invoices for organizations whenever they want to pay after a certain period (e.g. monthly or quarterly).
 
  For the project to run, it requires:
 
