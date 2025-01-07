@@ -45,7 +45,7 @@ class PatientBill(SerializerMixin):
     bill_type = db.Column(db.Enum(BillType), nullable=False)
     amount = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now().astimezone())
-    updated_at = db.Column(db.Datetime)
+    updated_at = db.Column(db.DateTime)
 
     org = db.relationship('Organization', back_populates = 'bills', cascade = "all, delete-orphan")
 

@@ -9,6 +9,7 @@ flask-sqlalchemy = "*"
 sqlalchemy-serializer = "*"
 flask-restx = "*"
 pyjwt = "*"
+python-dotenv = "*"
 
 [dev-packages]
 
