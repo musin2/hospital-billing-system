@@ -5,9 +5,11 @@ import os
 from models import db, User, PatientBill, Organization
 from datetime import datetime
 from dotenv import load_dotenv
+from flask_migrate import Migrate
 
 app = Flask(__name__)
 load_dotenv()
+migrate = Migrate(app, db)
 database_uri = os.getenv("DEVELOPMENT_DATABASE_URI")
 print(database_uri)
 
