@@ -47,9 +47,11 @@ class PatientBill(SerializerMixin):
     created_at = db.Column(db.DateTime, default=datetime.now().astimezone())
     updated_at = db.Column(db.DateTime)
 
-    org = db.relationship('Organization', back_populates = 'bills', cascade = "all, delete-orphan")
+    org = db.relationship(
+        "Organization", back_populates="bills", cascade="all, delete-orphan"
+    )
 
-    serialize_rules = ("-org.bills")
+    serialize_rules = "-org.bills"
 
 
 class Organization(SerializerMixin):
@@ -59,9 +61,11 @@ class Organization(SerializerMixin):
     org_name = db.Column(db.String(255), nullable=False)
     org_type = db.Column(db.Enum(OrganizationType), nullable=False)
 
-    bills = db.relationship('PatientBill', back_populates = 'org', cascade = "all, delete-orphan")
+    bills = db.relationship(
+        "PatientBill", back_populates="org", cascade="all, delete-orphan"
+    )
 
-    serialize_rules = ("-bills.org")
+    serialize_rules = "-bills.org"
 
 
 # [x] RELATIONSHIPS

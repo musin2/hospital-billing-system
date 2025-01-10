@@ -18,12 +18,13 @@ if not database_uri:
 
 # [x] DATABASE URI TO BE A ENV VARIABLE
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
+app.config["SQLALCHEMY_DATABASE_URI"] = database_uri
 
 api = Api(app)
 db.init_app(app)
 
 # [ ] User authentication using PYJWT
+
 
 class Bills(Resource):
     def get(self):
@@ -31,21 +32,21 @@ class Bills(Resource):
             with app.app_context():
                 bills = PatientBill.query.all()
 
-            if(not bills):
-                return make_response({'message': 'Bills not found'}, 404)
+            if not bills:
+                return make_response({"message": "Bills not found"}, 404)
             return make_response([bill.to_dict() for bill in bills], 200)
-        
-        except Exception as e:
-            return {'error': str(e)}, 500   #Return error message with status code 500 if something goes wrong
-            
 
-api.add_resource(Bills, '/bills')
+        except Exception as e:
+            return {
+                "error": str(e)
+            }, 500  # Return error message with status code 500 if something goes wrong
+
+
+api.add_resource(Bills, "/bills")
 
 
 # [ ] Invoice generator
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(port=5000, debug=True)
-

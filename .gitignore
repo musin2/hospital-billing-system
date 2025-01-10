@@ -23,3 +23,6 @@ server/__pycache__
 *.njsproj
 *.sln
 *.sw?
+
+server/.env
+
