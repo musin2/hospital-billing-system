@@ -23,7 +23,7 @@ class OrganizationType(Enum):
     corporation = "Company / Corporation"
 
 
-class User(SerializerMixin):
+class User(db.Model, SerializerMixin):
     __tablename__ = "users"
 
     user_id = db.Column(db.Integer, primary_key=True)
@@ -33,7 +33,7 @@ class User(SerializerMixin):
     password = db.Column(db.String(200), nullable=False)
 
 
-class PatientBill(SerializerMixin):
+class PatientBill(db.Model, SerializerMixin):
     __tablename__ = "patient_bills"
 
     patient_id = db.Column(db.Integer, primary_key=True)
@@ -54,7 +54,7 @@ class PatientBill(SerializerMixin):
     serialize_rules = "-org.bills"
 
 
-class Organization(SerializerMixin):
+class Organization(db.Model, SerializerMixin):
     __tablename__ = "organizations"
 
     org_id = db.Column(db.Integer, primary_key=True)
