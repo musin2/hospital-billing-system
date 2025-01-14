@@ -23,6 +23,13 @@ class OrganizationType(Enum):
     corporation = "Company / Corporation"
 
 
+class Gender(Enum):
+    male = "Male"
+    female = "Female"
+    other = "Not specifies"
+
+
+# Users table
 class User(db.Model, SerializerMixin):
     __tablename__ = "users"
 
@@ -33,11 +40,15 @@ class User(db.Model, SerializerMixin):
     password = db.Column(db.String(200), nullable=False)
 
 
+# Bills Table (=many)
 class PatientBill(db.Model, SerializerMixin):
     __tablename__ = "patient_bills"
 
     patient_id = db.Column(db.Integer, primary_key=True)
     patient_name = db.Column(db.String(255), nullable=False)
+    patient_gender = db.Column(db.Enum(Gender), nullable=False)
+    patiend_age = db.Column(db.Integer, nullable=False)
+    patient_contact = db.Column(db.String, nullable=False)
     bill_date = db.Column(db.DateTime, nullable=False)
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
@@ -47,13 +58,12 @@ class PatientBill(db.Model, SerializerMixin):
     created_at = db.Column(db.DateTime, default=datetime.now().astimezone())
     updated_at = db.Column(db.DateTime)
 
-    org = db.relationship(
-        "Organization", back_populates="bills", cascade="all, delete-orphan"
-    )
+    org = db.relationship("Organization", back_populates="bills", cascade="all")
 
     serialize_rules = "-org.bills"
 
 
+# Organization Table (-one)
 class Organization(db.Model, SerializerMixin):
     __tablename__ = "organizations"
 
