@@ -23,11 +23,12 @@ class OrganizationType(Enum):
     corporation = "Company / Corporation"
 
 
-class Gender(Enum):
+class GenderOption(Enum):
     male = "Male"
     female = "Female"
-    other = "Not specifies"
+    other = "Not specified"
 
+print(OrganizationType.corporation.name)
 
 # Users table
 class User(db.Model, SerializerMixin):
@@ -46,8 +47,8 @@ class PatientBill(db.Model, SerializerMixin):
 
     patient_id = db.Column(db.Integer, primary_key=True)
     patient_name = db.Column(db.String(255), nullable=False)
-    patient_gender = db.Column(db.Enum(Gender), nullable=False)
-    patiend_age = db.Column(db.Integer, nullable=False)
+    patient_gender = db.Column(db.Enum(GenderOption), nullable=False)
+    patient_age = db.Column(db.Integer, nullable=False)
     patient_contact = db.Column(db.String, nullable=False)
     bill_date = db.Column(db.DateTime, nullable=False)
     organization_id = db.Column(
