@@ -23,7 +23,15 @@ class OrganizationType(Enum):
     corporation = "Company / Corporation"
 
 
-class User(SerializerMixin):
+class GenderOption(Enum):
+    male = "Male"
+    female = "Female"
+    other = "Not specified"
+
+print(OrganizationType.corporation.name)
+
+# Users table
+class User(db.Model, SerializerMixin):
     __tablename__ = "users"
 
     user_id = db.Column(db.Integer, primary_key=True)
@@ -33,11 +41,15 @@ class User(SerializerMixin):
     password = db.Column(db.String(200), nullable=False)
 
 
-class PatientBill(SerializerMixin):
+# Bills Table (=many)
+class PatientBill(db.Model, SerializerMixin):
     __tablename__ = "patient_bills"
 
     patient_id = db.Column(db.Integer, primary_key=True)
     patient_name = db.Column(db.String(255), nullable=False)
+    patient_gender = db.Column(db.Enum(GenderOption), nullable=False)
+    patient_age = db.Column(db.Integer, nullable=False)
+    patient_contact = db.Column(db.String, nullable=False)
     bill_date = db.Column(db.DateTime, nullable=False)
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
@@ -47,21 +59,24 @@ class PatientBill(SerializerMixin):
     created_at = db.Column(db.DateTime, default=datetime.now().astimezone())
     updated_at = db.Column(db.DateTime)
 
-    org = db.relationship('Organization', back_populates = 'bills', cascade = "all, delete-orphan")
+    org = db.relationship("Organization", back_populates="bills", cascade="all")
 
-    serialize_rules = ("-org.bills")
+    serialize_rules = "-org.bills"
 
 
-class Organization(SerializerMixin):
+# Organization Table (-one)
+class Organization(db.Model, SerializerMixin):
     __tablename__ = "organizations"
 
     org_id = db.Column(db.Integer, primary_key=True)
     org_name = db.Column(db.String(255), nullable=False)
     org_type = db.Column(db.Enum(OrganizationType), nullable=False)
 
-    bills = db.relationship('PatientBill', back_populates = 'org', cascade = "all, delete-orphan")
+    bills = db.relationship(
+        "PatientBill", back_populates="org", cascade="all, delete-orphan"
+    )
 
-    serialize_rules = ("-bills.org")
+    serialize_rules = "-bills.org"
 
 
 # [x] RELATIONSHIPS
