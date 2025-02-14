@@ -61,7 +61,7 @@ class PatientBill(db.Model, SerializerMixin):
 
     org = db.relationship("Organization", back_populates="bills", cascade="all")
 
-    serialize_rules = "-org.bills"
+    serialize_rules = ("-org.bills",)
 
 
 # Organization Table (-one)
@@ -76,7 +76,7 @@ class Organization(db.Model, SerializerMixin):
         "PatientBill", back_populates="org", cascade="all, delete-orphan"
     )
 
-    serialize_rules = "-bills.org"
+    serialize_rules = ("-bills.org",)
 
 
 # [x] RELATIONSHIPS
