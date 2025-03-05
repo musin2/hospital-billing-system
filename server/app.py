@@ -7,6 +7,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash
+from functools import wraps
 
 # from rich import print
 
@@ -33,17 +34,28 @@ db.init_app(app)
 
 # Get, Patch, & Delete a specific user
 class UserAPI(Resource):
-    def get(self, u_id):
-        try:
-            if (
-                u_id is None or not isinstance(u_id, int) or u_id < 0
-            ):  # Validate url parameter (user id)
+    # Decorator funcion for validation
+    def validation(funct):
+        @wraps(funct)
+        def wrapper(*args, **kwargs):
+            # Get u_id from kwargs
+            u_id = kwargs.get("u_id")
+            # Validate url parameter (user id)
+            if u_id is None or not isinstance(u_id, int) or u_id < 0:
                 return make_response({"error": "Invalid User ID"}, 400)
 
             user = User.query.filter_by(user_id=u_id).first()
             if not user:
                 return make_response({"error": "User not found"}, 404)
+            # Pass user object to the decorated function
+            kwargs["user"] = user
+            return funct(*args, **kwargs)
 
+        return wrapper
+
+    @validation
+    def get(self, u_id, user):
+        try:
             return make_response(user.to_dict(), 200)
 
         except Exception as e:
@@ -51,15 +63,9 @@ class UserAPI(Resource):
                 {"error": str(e)}, 500
             )  # Return error message if something goes wrong
 
-    def patch(self, u_id):
+    @validation
+    def patch(self, u_id, user):
         try:
-            if u_id is None or not isinstance(u_id, int) or u_id < 0:
-                return make_response({"error": "Invalid User ID"}, 400)
-
-            user = User.query.filter_by(user_id=u_id).first()
-            if not user:
-                return make_response({"error": "User not found"}, 404)
-
             updated_user = request.get_json()  # Get Json data from the request
             # Validate JSON data
             if (
@@ -70,12 +76,10 @@ class UserAPI(Resource):
                 return make_response({"error": "Invalid JSON data"}, 400)
 
             for attribute in updated_user:
-                if hasattr(
-                    user, attribute
-                ):  # Check if attribute exists in the user instance
-                    setattr(
-                        user, attribute, updated_user[attribute]
-                    )  # Dynamically set 'user' instance attributes
+                # Check if attribute exists in the user instance
+                if hasattr(user, attribute):
+                    # Dynamically set 'user' instance attributes
+                    setattr(user, attribute, updated_user[attribute])
                 else:
                     return make_response(
                         {"error": f"Attribute '{attribute}' not found"}, 400
@@ -87,15 +91,9 @@ class UserAPI(Resource):
             db.session.rollback()
             return make_response({"error": str(e)}, 500)
 
-    def delete(self, u_id):
+    @validation
+    def delete(self, u_id, user):
         try:
-            if u_id is None or not isinstance(u_id, int) or u_id < 0:
-                return make_response({"error": "Invalid User ID"}, 400)
-
-            user = User.query.filter_by(user_id=u_id).first()
-            if not user:
-                return make_response({"error": "User not found"}, 404)
-
             db.session.delete(user)
             db.session.commit()
             return make_response({"message": "User deleted successfully"}, 200)
@@ -105,7 +103,7 @@ class UserAPI(Resource):
             return make_response({"error": str(e)}, 500)
 
 
-api.add_resource(UserAPI, "/user<int:u_id>")
+api.add_resource(UserAPI, "/user/<int:u_id>")
 
 
 # Create new user
@@ -163,9 +161,8 @@ class Bills(Resource):
             return make_response([bill.to_dict() for bill in bills], 200)
 
         except Exception as e:
-            return make_response(
-                {"error": str(e)}, 500
-            )  # Return error message with status code 500 if something goes wrong
+            # Return error message with status code 500 if something goes wrong
+            return make_response({"error": str(e)}, 500)
 
     # Create a new bill
     def post(self):
@@ -174,6 +171,7 @@ class Bills(Resource):
 
             # Data Validation
             required_fields = [
+                "patient_number",
                 "patient_id",
                 "patient_name",
                 "patient_gender",
@@ -188,6 +186,7 @@ class Bills(Resource):
                 if field not in data:
                     return make_response({"error": f"Missing data: {field}"}, 400)
 
+            patient_number = data["patient_number"]
             patient_id = data["patient_id"]
             patient_name = data["patient_name"]
             patient_gender = data["patient_gender"]
@@ -200,6 +199,7 @@ class Bills(Resource):
             created_at = datetime.now().astimezone()  # Set created_at to current time
 
             new_bill = PatientBill(
+                patient_number = patient_number,
                 patient_id=patient_id,
                 patient_name=patient_name,
                 patient_gender=patient_gender,
@@ -227,19 +227,39 @@ api.add_resource(Bills, "/bills")
 
 # Patch, delete & get individual bill using id parameter
 class Bill(Resource):
-    def patch(
-        self, b_id
-    ):  # [ ] Updated at => get current time - datetime.now().astimezone()
+    def validation(funct):
+        @wraps(funct)
+        def wrapper(*args, **kwargs):
+            b_id = kwargs.get("b_id")
+
+            if b_id is None or not isinstance(b_id, str) or b_id < 0:
+                return make_response({"error": "Invalid Bill ID"}, 400)
+            
+            bill = PatientBill.query.filter_by(bill_id = b_id).first()
+            if not bill:
+                return make_response({"error": "Bill not found"}, 404)
+            
+            kwargs["bill"] = bill
+
+            return funct(*args, **kwargs)
+        return wrapper
+
+    # [ ] Updated at => get current time - datetime.now().astimezone()
+    def patch(self, b_id, bill):
         pass
 
-    def delete(self, b_id):
+    def delete(self, b_id, bill):
         pass
 
-    def get(self, b_id):
-        pass
+    def get(self, b_id, bill):
+        try:
+            # [ ] Bill ID
+            bill = PatientBill.query.filter_by(bill_id = b_id).first()
+        except Exception as e:
+            return make_response({"error": str(e)}, 500)
 
 
-api.add_resource(Bill, "/bill<int:b_id>")
+api.add_resource(Bill, "/bill/<int:b_id>")
 
 
 # Get all organizations and create a new organization (corporate client)
@@ -256,17 +276,48 @@ api.add_resource(Organizations, "/orgs")
 
 # Get, Patch, & Delete a specific organization
 class OrganizationAPI(Resource):
-    def get(self, o_id):
+    # Validation decorator
+    def validation(funct):
+        @wraps(funct)
+        def wrapper(*args, **kwargs):
+            o_id = kwargs.get("o_id")
+            if o_id is None or not isinstance(o_id, int) or o_id < 0:
+                return make_response({"error": "Invalid Organization ID"}, 400)
+
+            org = Organization.query.filter_by(org_id=o_id).first()
+            if not org:
+                return make_response({"error": "Organization not found"}, 404)
+
+            # Pass org object to the decorated function
+            kwargs["org"] = org
+            return funct(*args, **kwargs)
+
+        return wrapper
+
+    @validation
+    def get(self, o_id, org):
+        try:
+            return make_response(org.to_dict(), 200)
+        except Exception as e:
+            return make_response({"error": str(e)}, 500)
+
+    @validation
+    def patch(self, o_id, org):
         pass
 
-    def patch(self, o_id):
-        pass
+    @validation
+    def delete(self, o_id, org):
+        try:
 
-    def delete(self, o_id):
-        pass
+            db.session.delete(org)
+            db.session.commit()
+            return make_response({"message": "Organization deleted successfully"}, 200)
+        except Exception as e:
+            db.session.rollback()
+            return make_response({"error": str(e)}, 500)
 
 
-api.add_resource(OrganizationAPI, "/org<int:o_id>")
+api.add_resource(OrganizationAPI, "/org/<int:o_id>")
 
 
 # [ ] Invoice generator
