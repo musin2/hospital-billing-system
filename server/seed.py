@@ -40,10 +40,10 @@ with app.app_context():
 
     # Add data to Organization table
     try:
-        org1 = Organization(org_name="SHA", org_type="insurance")
-        org2 = Organization(org_name="Jubilee", org_type="insurance")
-        org3 = Organization(org_name="Mzuri Sweets", org_type="corporation")
-        org4 = Organization(org_name="Maize Millers", org_type="corporation")
+        org1 = Organization(org_name="SHA", org_email = "sha@email.com",org_phone_number = "+254 744 21",org_type="insurance")
+        org2 = Organization(org_name="Jubilee", org_email = "jubilee@email.com",org_phone_number = "+254 7845 329",org_type="insurance")
+        org3 = Organization(org_name="Mzuri Sweets", org_email = "mzuri@email.com",org_phone_number = "+254 785 326",org_type="corporation")
+        org4 = Organization(org_name="Maize Millers", org_email = "millers@email.com",org_phone_number = "+254 7123 588",org_type="corporation")
 
         db.session.add_all([org1, org2, org3, org4])
         db.session.commit()
@@ -51,6 +51,8 @@ with app.app_context():
 
         # Add data to PatientBill table
         patbill1 = PatientBill(
+            patient_number = 7536,
+            patient_id = 648354653,
             patient_name="James Wock",
             patient_gender="male",
             patient_age=62,
@@ -61,6 +63,8 @@ with app.app_context():
             amount=64000,
         )
         patbill2 = PatientBill(
+            patient_number = 7829,
+            patient_id = 738347483678,
             patient_name="Randy Mav",
             patient_gender="male",
             patient_age=29,
@@ -71,6 +75,8 @@ with app.app_context():
             amount=190000,
         )
         patbill3 = PatientBill(
+            patient_number = 7483,
+            patient_id = 73786727732,
             patient_name="Katherine Karaja",
             patient_gender="female",
             patient_age=32,
