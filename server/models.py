@@ -19,7 +19,6 @@ class BillType(Enum):
 
 class OrganizationType(Enum):
     insurance = "Insurance Company"
-    association = "Association"
     corporation = "Company / Corporation"
 
 
@@ -28,7 +27,9 @@ class GenderOption(Enum):
     female = "Female"
     other = "Not specified"
 
+
 print(OrganizationType.corporation.name)
+
 
 # Users table
 class User(db.Model, SerializerMixin):
@@ -45,7 +46,11 @@ class User(db.Model, SerializerMixin):
 class PatientBill(db.Model, SerializerMixin):
     __tablename__ = "patient_bills"
 
-    patient_id = db.Column(db.Integer, primary_key=True)
+    bill_id = db.Column(db.Integer, primary_key=True)
+    # Inpatient / Outpatient number
+    patient_number = db.Column(db.String(255), nullable=False, unique=True)
+    # Personal number (ID / Passport)
+    patient_id = db.Column(db.Integer, nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
     patient_gender = db.Column(db.Enum(GenderOption), nullable=False)
     patient_age = db.Column(db.Integer, nullable=False)
@@ -63,6 +68,11 @@ class PatientBill(db.Model, SerializerMixin):
 
     serialize_rules = ("-org.bills",)
 
+# Transactions table (=many) - Transactions on total bill for an organization [full or partial payments]
+#  [ ] Transactions table
+class Transaction(db.Model, SerializerMixin):
+    __tablename__ = "transactions"
+
 
 # Organization Table (-one)
 class Organization(db.Model, SerializerMixin):
@@ -70,6 +80,8 @@ class Organization(db.Model, SerializerMixin):
 
     org_id = db.Column(db.Integer, primary_key=True)
     org_name = db.Column(db.String(255), nullable=False)
+    org_email = db.Column(db.String(255), nullable=False, unique=True)
+    org_phone_number = db.Column(db.String(255), nullable=False, unique=True)
     org_type = db.Column(db.Enum(OrganizationType), nullable=False)
 
     bills = db.relationship(
