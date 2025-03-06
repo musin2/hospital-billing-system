@@ -2,6 +2,7 @@ from enum import Enum
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy_serializer import SerializerMixin
 from datetime import datetime
+from decimal import Decimal
 
 db = SQLAlchemy()
 
@@ -83,6 +84,7 @@ class Organization(db.Model, SerializerMixin):
     org_email = db.Column(db.String(255), nullable=False, unique=True)
     org_phone_number = db.Column(db.String(255), nullable=False, unique=True)
     org_type = db.Column(db.Enum(OrganizationType), nullable=False)
+    outstanding_balance = db.Column(db.Decimal(15, 2), default=Decimal("0.00"))
 
     bills = db.relationship(
         "PatientBill", back_populates="org", cascade="all, delete-orphan"
