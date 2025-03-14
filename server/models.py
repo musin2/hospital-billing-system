@@ -10,8 +10,8 @@ db = SQLAlchemy()
 
 # [x] MODELS
 class UserRole(Enum):
-    admin = "admin"
-    employee = "employee"
+    admin = "admin"  # can do employee tasks + make adjustments & void bills
+    employee = "employee"  # can add bill, add transaction, edit non-financial data
 
 
 class BillType(Enum):
@@ -34,6 +34,12 @@ class BillStatus(Enum):
     paid = "paid"
     unpaid = "unpaid"
     partially_paid = "partially_paid"
+    void = "void"  # Errored bill (move to voided bills table then create a new one)
+
+
+class TransactionType(Enum):
+    payment = "payment"
+    refund = "refund"
 
 
 print(OrganizationType.corporation.name)
@@ -41,6 +47,7 @@ print(BillStatus.unpaid.name)
 
 
 # Users table
+# [ ] Confirm if columns are complete
 class User(db.Model, SerializerMixin):
     __tablename__ = "users"
 
@@ -57,6 +64,9 @@ class User(db.Model, SerializerMixin):
     adjustments = db.relationship(
         "Adjustment", back_populates="user", cascade="save-update, merge"
     )
+    voids = db.relationship(
+        "VoidBill", back_populates="user", cascade="save-update, merge"
+    )
 
     serialize_rules = (
         "-logs.user",
@@ -64,14 +74,14 @@ class User(db.Model, SerializerMixin):
         "-adjustments",
     )  # Exclude user.logs & user.adjustments
 
-
+# Tracks edits made to non-financial data
 class AuditLog(db.Model, SerializerMixin):
     __tablename__ = "auditlogs"
 
     log_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
-    # Action that was taken on the record
-    action = db.Column(db.String(255), nullable=False)
+    # Action that was taken on the record (**EDIT ONLY)
+    # action = db.Column(db.String(255), nullable=False)
     # Model name
     table_name = db.Column(db.String(255), nullable=False)
     column_name = db.Column(db.String(255), nullable=False)
@@ -103,14 +113,16 @@ class PatientBill(db.Model, SerializerMixin):
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
     )
     bill_type = db.Column(db.Enum(BillType), nullable=False)
+    # amount can only be adjusted by Admin
     amount = db.Column(db.Decimal(15, 2), nullable=False)
+    # Status can not be edited
     status = db.Column(db.Enum(BillStatus), nullable=False)
+    # paid_amount = amount in the case of complete payment; otherwise, it is partail payment
     paid_amount = db.Column(db.Decimal(15, 2), default=Decimal("0.00"))
     created_at = db.Column(db.DateTime, default=func.now())
     updated_at = db.Column(
         db.DateTime, default=func.now(), onupdate=func.now()
     )  # Nullable
-    deleted_at = db.Column(db.DateTime)
 
     org = db.relationship(
         "Organization", back_populates="bills", cascade="save-update, merge"
@@ -118,7 +130,7 @@ class PatientBill(db.Model, SerializerMixin):
 
     serialize_rules = ("-org.bills",)
 
-
+# Tracks edits made to financial data by admins
 class Adjustment(db.Model, SerializerMixin):
     __tablename__ = "adjustments"
 
@@ -161,6 +173,7 @@ class PaidBill(db.Model, SerializerMixin):
     amount = db.Column(db.Decimal(15, 2), nullable=False)
     status = db.Column(db.Enum(BillStatus), nullable=False)
     paid_amount = db.Column(db.Decimal(15, 2), default=Decimal("0.00"))
+    # Transaction that fully paid the bill
     transaction_id = db.Column(
         db.Integer, db.ForeignKey("transactions.transaction_id"), nullable=False
     )
@@ -172,12 +185,55 @@ class PaidBill(db.Model, SerializerMixin):
     org = db.relationship(
         "Organization", back_populates="paid_bills", cascade="save-update, merge"
     )
+    transaction = db.relationship(
+        "Transaction", back_populates="paid_bills", cascade="save-update, merge"
+    )
+
+    serialize_rules = ("-org.bills",)
+
+
+# Errenous bills that have been voided
+class VoidBill(db.Model, SerializerMixin):
+    __tablename__ = "paid_bills"
+
+    bill_id = db.Column(db.Integer, primary_key=True)
+    # Inpatient / Outpatient number
+    voided_by = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    patient_number = db.Column(db.String(255), nullable=False, unique=True)
+    # Personal number (ID / Passport)
+    patient_id = db.Column(db.Integer, nullable=False)
+    patient_name = db.Column(db.String(255), nullable=False)
+    patient_gender = db.Column(db.Enum(GenderOption), nullable=False)
+    patient_age = db.Column(db.Integer, nullable=False)
+    patient_phone_number = db.Column(db.String, nullable=False)
+    bill_date = db.Column(db.DateTime, nullable=False)
+    organization_id = db.Column(
+        db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
+    )
+    bill_type = db.Column(db.Enum(BillType), nullable=False)
+    amount = db.Column(db.Decimal(15, 2), nullable=False)
+    status = db.Column(db.Enum(BillStatus), nullable=False)
+    paid_amount = db.Column(db.Decimal(15, 2), default=Decimal("0.00"))
+    transaction_id = db.Column(
+        db.Integer, db.ForeignKey("transactions.transaction_id"), nullable=False
+    )
+    created_at = db.Column(db.DateTime, default=func.now())
+    updated_at = db.Column(
+        db.DateTime, default=func.now(), onupdate=func.now()
+    )  # Nullable
+    # [ ] Set voided timestamp when bill status = void
+    voided_at = db.Column(db.DateTime)
+
+    org = db.relationship(
+        "Organization", back_populates="paid_bills", cascade="save-update, merge"
+    )
+    user = db.relationship("User", back_populates="voids", cascade="save-update, merge")
 
     serialize_rules = ("-org.bills",)
 
 
 # Transactions table (=many) - Transactions on total bill for an organization [full or partial payments]
-#  [ ] Transactions table
+#  [x] Transactions table
 class Transaction(db.Model, SerializerMixin):
     __tablename__ = "transactions"
 
@@ -185,6 +241,8 @@ class Transaction(db.Model, SerializerMixin):
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
     )
+    #  **
+    transaction_type = db.Column(db.Enum(TransactionType), nullable=False)
     # outstanding_balance before the transaction
     previous_outstanding_balance = db.Column(db.Decimal(15, 2), nullable=False)
     # amount to be deducted from the outstanding balance
@@ -196,6 +254,9 @@ class Transaction(db.Model, SerializerMixin):
 
     org = db.relationship(
         "Organization", back_populates="transactions", cascade="save-update, merge"
+    )
+    paid_bills = db.relationship(
+        "PaidBill", back_populates="transaction", cascade="save-update, merge"
     )
 
     serialize_rules = ("-org.transactions",)
@@ -212,7 +273,7 @@ class Organization(db.Model, SerializerMixin):
     org_type = db.Column(db.Enum(OrganizationType), nullable=False)
     outstanding_balance = db.Column(db.Decimal(15, 2), default=Decimal("0.00"))
     # [ ] soft delete flag
-    deleted_at = db.Column(db.DateTime)  # Nullable
+    # deleted_at = db.Column(db.DateTime)  # Nullable
 
     bills = db.relationship(
         "PatientBill", back_populates="org", cascade="save-update, merge"
