@@ -59,10 +59,10 @@ class UserAPI(Resource):
             return make_response(user.to_dict(), 200)
 
         except Exception as e:
-            return make_response(
-                {"error": str(e)}, 500
-            )  # Return error message if something goes wrong
-
+            # Return error message if something goes wrong
+            return make_response({"error": str(e)}, 500)
+    # [ ] Fill AuditLog table before applying the changes
+    # [ ] Check dynamic setting of attributes (is appropriate / secure ?)
     @validation
     def patch(self, u_id, user):
         try:
@@ -154,6 +154,7 @@ class Bills(Resource):
     # Get all bills
     def get(self):
         try:
+            # Filter for soft-deletion
             bills = PatientBill.query.all()
 
             if not bills:
@@ -176,12 +177,13 @@ class Bills(Resource):
                 "patient_name",
                 "patient_gender",
                 "patient_age",
-                "patient_contact",
+                "patient_phone_number",
                 "bill_date",
                 "organization_id",
                 "bill_type",
                 "amount",
             ]
+            # [ ] additional validation in database ? with column data types
             for field in required_fields:
                 if field not in data:
                     return make_response({"error": f"Missing data: {field}"}, 400)
@@ -191,7 +193,7 @@ class Bills(Resource):
             patient_name = data["patient_name"]
             patient_gender = data["patient_gender"]
             patient_age = data["patient_age"]
-            patient_contact = data["patient_contact"]
+            patient_phone_number = data["patient_phone_number"]
             bill_date = data["bill_date"]
             organization_id = data["organization_id"]
             bill_type = data["bill_type"]
@@ -199,19 +201,19 @@ class Bills(Resource):
             created_at = datetime.now().astimezone()  # Set created_at to current time
 
             new_bill = PatientBill(
-                patient_number = patient_number,
+                patient_number=patient_number,
                 patient_id=patient_id,
                 patient_name=patient_name,
                 patient_gender=patient_gender,
                 patient_age=patient_age,
-                patient_contact=patient_contact,
+                patient_phone_number=patient_phone_number,
                 bill_date=bill_date,
                 organization_id=organization_id,
                 bill_type=bill_type,
                 amount=amount,
                 created_at=created_at,
             )
-
+            # [ ] update outstanding_balance in 'Organization' table
             db.session.add(new_bill)
             db.session.commit()
             response_body = {"message": "Bill created successfully!"}
@@ -234,27 +236,40 @@ class Bill(Resource):
 
             if b_id is None or not isinstance(b_id, str) or b_id < 0:
                 return make_response({"error": "Invalid Bill ID"}, 400)
-            
-            bill = PatientBill.query.filter_by(bill_id = b_id).first()
+
+            bill = PatientBill.query.filter_by(bill_id=b_id).first()
+            # [ ] Check if bill is soft_deleted
             if not bill:
                 return make_response({"error": "Bill not found"}, 404)
-            
+
             kwargs["bill"] = bill
 
             return funct(*args, **kwargs)
+
         return wrapper
 
-    # [ ] Updated at => get current time - datetime.now().astimezone()
+    # [x] Updated at => func.now() - database level
+    # [ ] void billl ->  Move Bill to VoidBill , fill adjustments / AuditLog table 
+    # [ ] Delete voided PatientBill ?
+    # Organization.outstanding_balance - void Bill amount
+    # Bill is void if the wrong patient or amount was recorded
+    # Bill can only be voided by an admin (controlled visibility?)
+    # ** Case of previous_balance & final_balance in 'Transactions' table???? (*adjustment?)
+    # [ ] Non-financial data editing
+    # [ ] Fill AuditLog table before applying the changes
     def patch(self, b_id, bill):
         pass
 
     def delete(self, b_id, bill):
+        # [ ] Cannot Delete Bill??
         pass
 
+    @validation
     def get(self, b_id, bill):
         try:
             # [ ] Bill ID
-            bill = PatientBill.query.filter_by(bill_id = b_id).first()
+            bill = PatientBill.query.filter_by(bill_id=b_id).first()
+            return make_response(bill.to_dict(), 200)
         except Exception as e:
             return make_response({"error": str(e)}, 500)
 
@@ -301,6 +316,8 @@ class OrganizationAPI(Resource):
         except Exception as e:
             return make_response({"error": str(e)}, 500)
 
+    # [ ] Non critical(financial) fields are editable by the admin
+    # [ ] Fill AuditLog before applying the changes
     @validation
     def patch(self, o_id, org):
         pass
@@ -308,16 +325,62 @@ class OrganizationAPI(Resource):
     @validation
     def delete(self, o_id, org):
         try:
-
-            db.session.delete(org)
-            db.session.commit()
-            return make_response({"message": "Organization deleted successfully"}, 200)
+            # [ ] Deactivate organization -> NO DELETION  (user cannot add new PatientBill for new organization)  
+            # db.session.delete(org)
+            # db.session.commit()
+            # return make_response({"message": "Organization deleted successfully"}, 200)
         except Exception as e:
             db.session.rollback()
             return make_response({"error": str(e)}, 500)
 
 
 api.add_resource(OrganizationAPI, "/org/<int:o_id>")
+
+class Transactions(Resource):
+    def get():
+        pass
+
+# [ ] Reversing Transaction for wrong Organization
+# If a transaction is recorded incorrectly, create a reversing transaction (-ve transaction amount??)
+# [ ] Validate that the previous_outstanding_balance in the Transactions table matches the actual balance(outstanding_balance) at the time of the transaction
+# [ ] Handle concurrency / multiple transactions on the same org
+# Iterate through the unpaid bills and mark them as paid / partially_paid (FIFO - start with oldest bill)
+# [ ] Deduct the transaction amount(var x) after each bill has been allocated payment until x = 0 OR all bills for that organization are paid
+# [ ] Subtract remaining_amount (amount - paid_amount) from var x
+# [ ] Update paid_amount in 'PatientBill' table
+# [ ] Move PateintBill to PaidBill (sequential - via date) & change bill status*** if transaction amount > or = PatientBill amount 
+                                                                                    # If not, bill status = partially_paid 
+# [ ] Refunds (for inaccurate / overpaid transactions)
+# [ ] Update outstanding_balance in 'Organization' table (outstanding_balance - transaction_amount)
+    def post():
+        pass
+
+api.add_resource(Transactions,"/transactions")
+
+class Transaction(Resource):
+    # [ ] Fill AuditLog Table before applying changes
+    # [ ] Changing Organization_id will require reversal of previous transaction, reinstation of PaidBills, and re-allocation of PatientBills
+    def patch():
+        pass
+
+    def get():
+        pass
+
+api.add_resource(Transaction,"/transaction/<int:id>")
+
+
+# [ ] Adjustments (admin only feature)
+# Adjustments create a record for a change in critical-fields (financial data) and apply the change
+    # [ ] Recalculate outstanding_balance after PatientBill adjustment
+class BillAdjustment(Resource):
+    pass
+
+# [ ] Changing transaction amount will require require PaidBills to move back to PatientBill
+# Status changed to unpaid, paid_amount = 0, and payments to be re-allocated
+# Recalculation of outstanding_balance
+class TransactionAdjustment(Resource):
+    pass
+
 
 
 # [ ] Invoice generator
