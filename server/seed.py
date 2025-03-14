@@ -40,10 +40,30 @@ with app.app_context():
 
     # Add data to Organization table
     try:
-        org1 = Organization(org_name="SHA", org_email = "sha@email.com",org_phone_number = "+254 744 21",org_type="insurance")
-        org2 = Organization(org_name="Jubilee", org_email = "jubilee@email.com",org_phone_number = "+254 7845 329",org_type="insurance")
-        org3 = Organization(org_name="Mzuri Sweets", org_email = "mzuri@email.com",org_phone_number = "+254 785 326",org_type="corporation")
-        org4 = Organization(org_name="Maize Millers", org_email = "millers@email.com",org_phone_number = "+254 7123 588",org_type="corporation")
+        org1 = Organization(
+            org_name="SHA",
+            org_email="sha@email.com",
+            org_phone_number="+254 744 21",
+            org_type="insurance",
+        )
+        org2 = Organization(
+            org_name="Jubilee",
+            org_email="jubilee@email.com",
+            org_phone_number="+254 7845 329",
+            org_type="insurance",
+        )
+        org3 = Organization(
+            org_name="Mzuri Sweets",
+            org_email="mzuri@email.com",
+            org_phone_number="+254 785 326",
+            org_type="corporation",
+        )
+        org4 = Organization(
+            org_name="Maize Millers",
+            org_email="millers@email.com",
+            org_phone_number="+254 7123 588",
+            org_type="corporation",
+        )
 
         db.session.add_all([org1, org2, org3, org4])
         db.session.commit()
@@ -51,36 +71,36 @@ with app.app_context():
 
         # Add data to PatientBill table
         patbill1 = PatientBill(
-            patient_number = 7536,
-            patient_id = 648354653,
+            patient_number=7536,
+            patient_id=648354653,
             patient_name="James Wock",
             patient_gender="male",
             patient_age=62,
-            patient_contact="+254 6378938333",
+            patient_phone_number="+254 6378938333",
             bill_date=datetime.strptime("2025-02-12 15:30:00", "%Y-%m-%d %H:%M:%S"),
             organization_id=org1.org_id,
             bill_type="medical",
             amount=64000,
         )
         patbill2 = PatientBill(
-            patient_number = 7829,
-            patient_id = 738347483678,
+            patient_number=7829,
+            patient_id=738347483678,
             patient_name="Randy Mav",
             patient_gender="male",
             patient_age=29,
-            patient_contact="+254 63789444333",
+            patient_phone_number="+254 63789444333",
             bill_date=datetime.strptime("2025-05-22 16:37:00", "%Y-%m-%d %H:%M:%S"),
             organization_id=org1.org_id,
             bill_type="medical",
             amount=190000,
         )
         patbill3 = PatientBill(
-            patient_number = 7483,
-            patient_id = 73786727732,
+            patient_number=7483,
+            patient_id=73786727732,
             patient_name="Katherine Karaja",
             patient_gender="female",
             patient_age=32,
-            patient_contact="+25478938333",
+            patient_phone_number="+25478938333",
             bill_date=datetime.strptime("2023-10-12 19:30:00", "%Y-%m-%d %H:%M:%S"),
             organization_id=org2.org_id,
             bill_type="surgical",
