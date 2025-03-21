@@ -257,6 +257,7 @@ class Bill(Resource):
     # ** Case of previous_balance & final_balance in 'Transactions' table???? (*adjustment?)
     # [ ] Non-financial data editing
     # [ ] Fill AuditLog table before applying the changes
+    # [ ] Recalculate 'Organization' outsanding_balance when org_id is changed (subtract amount from previous, add amount to new org)
     def patch(self, b_id, bill):
         pass
 
@@ -276,6 +277,11 @@ class Bill(Resource):
 
 api.add_resource(Bill, "/bill/<int:b_id>")
 
+# For duplicate / invalid bills, 
+class Void(Resource):
+    pass
+
+api.add_resource(Void, "/void/<int:b_id>")
 
 # Get all organizations and create a new organization (corporate client)
 class Organizations(Resource):
@@ -342,10 +348,16 @@ class Transactions(Resource):
 
 # [ ] Reversing Transaction for wrong Organization
 # If a transaction is recorded incorrectly, create a reversing transaction (-ve transaction amount??)
+                                         # Then create the correct transaction 
 # [ ] Validate that the previous_outstanding_balance in the Transactions table matches the actual balance(outstanding_balance) at the time of the transaction
 # [ ] Handle concurrency / multiple transactions on the same org
+# amount - paid_amount = amount to be deducted from transaction amount
 # Iterate through the unpaid bills and mark them as paid / partially_paid (FIFO - start with oldest bill)
 # [ ] Deduct the transaction amount(var x) after each bill has been allocated payment until x = 0 OR all bills for that organization are paid
+# [ ] What happens when transaction amount is greater than outstanding_balance and all bills are paid
+        # partially pay single bill with negative (-) amount = overpay
+        # sum of unpaid bills = -(overpay) 
+        # outstanding_balance = -(overpay) 
 # [ ] Subtract remaining_amount (amount - paid_amount) from var x
 # [ ] Update paid_amount in 'PatientBill' table
 # [ ] Move PateintBill to PaidBill (sequential - via date) & change bill status*** if transaction amount > or = PatientBill amount 
@@ -376,6 +388,8 @@ class BillAdjustment(Resource):
     pass
 
 # [ ] Changing transaction amount will require require PaidBills to move back to PatientBill
+# [ ] Manually run code to assign payment to bills *
+# Reduce complexity by only using organization table for the outstanding_balance
 # Status changed to unpaid, paid_amount = 0, and payments to be re-allocated
 # Recalculation of outstanding_balance
 class TransactionAdjustment(Resource):
