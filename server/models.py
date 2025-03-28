@@ -1,6 +1,7 @@
 from enum import Enum
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.sql import func
+from sqlalchemy.orm import validates
 from sqlalchemy_serializer import SerializerMixin
 from datetime import datetime
 from decimal import Decimal
@@ -8,7 +9,6 @@ from decimal import Decimal
 db = SQLAlchemy()
 
 
-# [x] MODELS
 class UserRole(Enum):
     admin = "admin"  # can do employee tasks + make adjustments & void bills
     employee = "employee"  # can add bill, add transaction, edit non-financial data
@@ -54,7 +54,6 @@ class User(db.Model, SerializerMixin):
     user_id = db.Column(db.Integer, primary_key=True)
     user_name = db.Column(db.String(255), nullable=False)
     user_role = db.Column(db.Enum(UserRole), nullable=False)
-    # user_role = db.Column(db.Enum(UserRole), nullable=False)
     email = db.Column(db.String(255), nullable=False, unique=True)
     password = db.Column(db.String(200), nullable=False)
 
@@ -67,6 +66,24 @@ class User(db.Model, SerializerMixin):
     voids = db.relationship(
         "VoidBill", back_populates="user", cascade="save-update, merge"
     )
+
+    # [ ] Model Level Validation
+    @validates("email")
+    def validate_email(self, key, email):
+        if "@" not in email:
+            raise ValueError("Invalid email address")
+        return email
+    
+    # @validates("user_role")
+    # def validate_role(self, key, user_role):
+    #     if not isinstance(user_role,UserRole):
+    #         raise ValueError("Invalid role")
+    #     return user_role
+
+    @validates("user_name")
+    def validate_name(self, key, name):
+        if not isinstance(name,str) or name is None:
+            raise ValueError("Invalid Username: must be a string")
 
     serialize_rules = (
         "-logs.user",
@@ -91,6 +108,7 @@ class AuditLog(db.Model, SerializerMixin):
     timestamp = db.Column(db.DateTime, default=func.now())
 
     user = db.relationship("User", back_populates="logs", cascade="save-update, merge")
+    # [ ] Model Level Validation
 
     serialize_rules = ("-user.logs",)
 
@@ -127,6 +145,7 @@ class PatientBill(db.Model, SerializerMixin):
     org = db.relationship(
         "Organization", back_populates="bills", cascade="save-update, merge"
     )
+    # [ ] Model Level Validation
 
     serialize_rules = ("-org.bills",)
 
@@ -148,6 +167,7 @@ class Adjustment(db.Model, SerializerMixin):
     user = db.relationship(
         "User", back_populates="adjustments", cascade="save-update, merge"
     )
+    # [ ] Model Level Validation
 
     serialize_rules = ("-user.adjustments",)
 
@@ -258,6 +278,7 @@ class Transaction(db.Model, SerializerMixin):
     paid_bills = db.relationship(
         "PaidBill", back_populates="transaction", cascade="save-update, merge"
     )
+    # [ ] Model Level Validation
 
     serialize_rules = ("-org.transactions",)
 
@@ -284,6 +305,7 @@ class Organization(db.Model, SerializerMixin):
     transactions = db.relationship(
         "Transaction", back_populates="org", cascade="save-update, merge"
     )
+    # [ ] Model Level Validation
 
     serialize_rules = ("-bills.org", "-transactions.org", "-paid_bills.org")
 
