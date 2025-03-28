@@ -2,7 +2,7 @@ from flask import Flask, request, make_response
 from flask_restx import Resource, Api
 from flask_sqlalchemy import SQLAlchemy
 import os
-from models import db, User, PatientBill, Organization
+from models import db, User, PatientBill, Organization, AuditLog, Adjustment, PaidBill, VoidBill
 from datetime import datetime
 from dotenv import load_dotenv
 from flask_migrate import Migrate
@@ -31,7 +31,7 @@ db.init_app(app)
 
 # [ ] User authentication using PYJWT
 
-
+# Function that validates the object passed from the validation decorator 
 def check_record(object):
     if object is None:
         return make_response({"error":"Record not found"},404)
@@ -44,66 +44,63 @@ def check_record(object):
 
 # Decorator function for validation when looking up records with URL parameter
 def validation(funct):
-	@wraps(funct)
-	def wrapper(*args,**kwargs):
-		id = kwargs.get('id')
-		table = kwargs.get('table')
-		record = None
+    @wraps(funct)
+    def wrapper(*args,**kwargs):
+        id = kwargs.get('id')
+        table = kwargs.get('table')
+        record = None
+        
+        if id is None or not isinstance(id, int) or id < 0:
+            return make_response({"error":f"Invalid {table} ID"},400)
+        
+        if table == "Organization":
+            record =  Organization.query.filter_by(org_id = id).first()	
+        elif table == "User":
+            record = User.query.filter_by(user_id = id).first()
+        elif table == "Transaction":
+            record = Transaction.query.filter_by(transaction_id = id).first()
+        elif table == "AuditLog":
+            record = AuditLog.query.filter_by(log_id = id).first()
+        elif table == "PatientBill":
+            record = PatientBill.query.filter_by(bill_id = id).first()
+        elif table == "Adjustment":
+            record = Adjustment.query.filter_by(adjustment_id = id).first()
+        elif table == "PaidBill":
+            record = PaidBill.query.filter_by(bill_id = id).first()
+        elif table == "VoidBill":
+            record = VoidBill.query.filter_by(bill_id = id).first()
+        else:
+            return make_response({"error":"Invalid Table"},400)
+        error_response = check_record(record)
 		
-		if id is None or not isinstance(id, int) or id < 0:
-			return make_response({"error":f"Invalid {table} ID"},400)
-			
-		if table == "Organization":
-			record =  Organization.query.filter_by(org_id = id).first()	
-		elif table == "User":
-			record = User.query.filter_by(user_id = id).first()
-		elif table == "Transaction":
-			record = Transaction.query.filter_by(transaction_id = id).first()
-		else:
-			return make_response({"error":"Invalid Table"},400)
-		error_response = check_record(record)
-		
-		if error_response:
-			return error_response
-		kwargs['record'] = record
-		return funct(*args, **kwargs)
-	return wrapper
+        if error_response:
+            return error_response
+        kwargs['record'] = record
+        return funct(*args, **kwargs)
+    return wrapper
 
-# [ ] Modify functions that use validation decorator with table_name & all url parameters = id
+
+# [x] Modify functions that use validation decorator with table_name & all url parameters = id
 # Get, Patch, & Delete a specific user
 class UserAPI(Resource):
-    # Decorator funcion for validation
-    def validation(funct):
-        @wraps(funct)
-        def wrapper(*args, **kwargs):
-            # Get u_id from kwargs
-            u_id = kwargs.get("u_id")
-            # Validate url parameter (user id)
-            if u_id is None or not isinstance(u_id, int) or u_id < 0:
-                return make_response({"error": "Invalid User ID"}, 400)
-
-            user = User.query.filter_by(user_id=u_id).first()
-            if not user:
-                return make_response({"error": "User not found"}, 404)
-            # Pass user object to the decorated function
-            kwargs["user"] = user
-            return funct(*args, **kwargs)
-
-        return wrapper
 
     @validation
-    def get(self, u_id, user):
+    def get(self, id, record, table = "User"):
         try:
-            return make_response(user.to_dict(), 200)
+            return make_response(record.to_dict(), 200)
 
         except Exception as e:
             # Return error message if something goes wrong
             return make_response({"error": str(e)}, 500)
+        
     # [ ] Fill AuditLog table before applying the changes
     # [ ] Check dynamic setting of attributes (is appropriate / secure ?)
     @validation
-    def patch(self, u_id, user):
+    def patch(self, id, record, table = "User"):
         try:
+            # [ ] Admin only edits - all
+            # [ ] Check if current user is an admin
+            # If not, return an error message
             updated_user = request.get_json()  # Get Json data from the request
             # Validate JSON data
             if (
@@ -112,12 +109,22 @@ class UserAPI(Resource):
                 or not updated_user
             ):
                 return make_response({"error": "Invalid JSON data"}, 400)
+            
+            allowed_fields = ("user_name","user_role", "email", "password")
+
 
             for attribute in updated_user:
+                if attribute not in allowed_fields:
+                    return make_response({"error":f"Cannot update User's '{attribute}'"},403)
                 # Check if attribute exists in the user instance
-                if hasattr(user, attribute):
+                if hasattr(record, attribute):
                     # Dynamically set 'user' instance attributes
-                    setattr(user, attribute, updated_user[attribute])
+                    # [ ] Check if hashing code is accurate
+                    if attribute == "password":
+                        updated_user[attribute] = generate_password_hash(attribute,method="pbkdf2:sha256")
+                    # if attribute == "user_role":
+                    #   
+                    setattr(record, attribute, updated_user[attribute])
                 else:
                     return make_response(
                         {"error": f"Attribute '{attribute}' not found"}, 400
@@ -130,9 +137,9 @@ class UserAPI(Resource):
             return make_response({"error": str(e)}, 500)
 
     @validation
-    def delete(self, u_id, user):
+    def delete(self, id, record, table = "User"):
         try:
-            db.session.delete(user)
+            db.session.delete(record)
             db.session.commit()
             return make_response({"message": "User deleted successfully"}, 200)
 
@@ -140,8 +147,7 @@ class UserAPI(Resource):
             db.session.rollback()
             return make_response({"error": str(e)}, 500)
 
-
-api.add_resource(UserAPI, "/user/<int:u_id>")
+api.add_resource(UserAPI, "/user/<int:id>")
 
 
 # Create new user
@@ -157,11 +163,15 @@ class NewUser(Resource):
             ):
                 return make_response({"error": "Invalid JSON data"}, 400)
             # Validate user data
+            #[ ] Validate data type for each field
             required_fields = ["user_name", "user_role", "email", "password"]
             for field in required_fields:
                 if field not in new_user_data:
                     return make_response({"error": f"Missing data: {field}"}, 400)
-
+                
+            # Validate password length
+            if len(new_user_data["password"]) < 6:
+                return make_response({"error":"Password must be more than 6 characters long"},400)
             # Generate password hash
             hashed_password = generate_password_hash(
                 new_user_data["password"], method="pbkdf2:sha256"
@@ -182,7 +192,6 @@ class NewUser(Resource):
         except Exception as e:
             db.session.rollback()
             return make_response({"error": str(e)}, 500)
-
 
 api.add_resource(NewUser, "/user")
 
@@ -235,6 +244,8 @@ class Bills(Resource):
             bill_date = data["bill_date"]
             organization_id = data["organization_id"]
             bill_type = data["bill_type"]
+            print(bill_type)
+            print(patient_gender)
             amount = data["amount"]
             created_at = datetime.now().astimezone()  # Set created_at to current time
 
@@ -264,27 +275,9 @@ class Bills(Resource):
 
 api.add_resource(Bills, "/bills")
 
-
+# [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 # Patch, delete & get individual bill using id parameter
 class Bill(Resource):
-    def validation(funct):
-        @wraps(funct)
-        def wrapper(*args, **kwargs):
-            b_id = kwargs.get("b_id")
-
-            if b_id is None or not isinstance(b_id, str) or b_id < 0:
-                return make_response({"error": "Invalid Bill ID"}, 400)
-
-            bill = PatientBill.query.filter_by(bill_id=b_id).first()
-            # [ ] Check if bill is soft_deleted
-            if not bill:
-                return make_response({"error": "Bill not found"}, 404)
-
-            kwargs["bill"] = bill
-
-            return funct(*args, **kwargs)
-
-        return wrapper
 
     # [x] Updated at => func.now() - database level
     # [ ] void billl ->  Move Bill to VoidBill , fill adjustments / AuditLog table 
@@ -296,30 +289,33 @@ class Bill(Resource):
     # [ ] Non-financial data editing
     # [ ] Fill AuditLog table before applying the changes
     # [ ] Recalculate 'Organization' outsanding_balance when org_id is changed (subtract amount from previous, add amount to new org)
-    def patch(self, b_id, bill):
+    @validation
+    def patch(self, id, record, table = "PatientBill"):
         pass
 
-    def delete(self, b_id, bill):
+    @validation
+    def delete(self, id, record, table = "PatientBill"):
         # [ ] Cannot Delete Bill??
         pass
 
     @validation
-    def get(self, b_id, bill):
+    def get(self, id, record, table = "PatientBill"):
         try:
             # [ ] Bill ID
-            bill = PatientBill.query.filter_by(bill_id=b_id).first()
-            return make_response(bill.to_dict(), 200)
+            record = PatientBill.query.filter_by(bill_id=id).first()
+            return make_response(record.to_dict(), 200)
         except Exception as e:
             return make_response({"error": str(e)}, 500)
 
 
-api.add_resource(Bill, "/bill/<int:b_id>")
+api.add_resource(Bill, "/bill/<int:id>")
 
+# [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 # For duplicate / invalid bills, 
 class Void(Resource):
     pass
 
-api.add_resource(Void, "/void/<int:b_id>")
+api.add_resource(Void, "/void/<int:id>")
 
 # Get all organizations and create a new organization (corporate client)
 class Organizations(Resource):
@@ -329,45 +325,27 @@ class Organizations(Resource):
     def post(self):
         pass
 
-
 api.add_resource(Organizations, "/orgs")
 
-
+# [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 # Get, Patch, & Delete a specific organization
 class OrganizationAPI(Resource):
-    # Validation decorator
-    def validation(funct):
-        @wraps(funct)
-        def wrapper(*args, **kwargs):
-            o_id = kwargs.get("o_id")
-            if o_id is None or not isinstance(o_id, int) or o_id < 0:
-                return make_response({"error": "Invalid Organization ID"}, 400)
-
-            org = Organization.query.filter_by(org_id=o_id).first()
-            if not org:
-                return make_response({"error": "Organization not found"}, 404)
-
-            # Pass org object to the decorated function
-            kwargs["org"] = org
-            return funct(*args, **kwargs)
-
-        return wrapper
-
+    
     @validation
-    def get(self, o_id, org):
+    def get(self, id, record, table = "Organization"):
         try:
-            return make_response(org.to_dict(), 200)
+            return make_response(record.to_dict(), 200)
         except Exception as e:
             return make_response({"error": str(e)}, 500)
 
     # [ ] Non critical(financial) fields are editable by the admin
     # [ ] Fill AuditLog before applying the changes
     @validation
-    def patch(self, o_id, org):
+    def patch(self, id, record, table = "Organization"):
         pass
 
     @validation
-    def delete(self, o_id, org):
+    def delete(self, id, record, table = "Organization"):
         try:
             # [ ] Deactivate organization -> NO DELETION  (user cannot add new PatientBill for new organization)  
             # db.session.delete(org)
@@ -378,7 +356,7 @@ class OrganizationAPI(Resource):
             return make_response({"error": str(e)}, 500)
 
 
-api.add_resource(OrganizationAPI, "/org/<int:o_id>")
+api.add_resource(OrganizationAPI, "/org/<int:id>")
 
 class Transactions(Resource):
     def get():
@@ -407,13 +385,16 @@ class Transactions(Resource):
 
 api.add_resource(Transactions,"/transactions")
 
+# [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 class Transaction(Resource):
     # [ ] Fill AuditLog Table before applying changes
     # [ ] Changing Organization_id will require reversal of previous transaction, reinstation of PaidBills, and re-allocation of PatientBills
-    def patch():
+    @validation
+    def patch(self, id, record, table = "Transaction"):
         pass
 
-    def get():
+    @validation
+    def get(self, id, record, table = "Transaction"):
         pass
 
 api.add_resource(Transaction,"/transaction/<int:id>")
