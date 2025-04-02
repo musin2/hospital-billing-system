@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash
 from functools import wraps
+from pydantic import EmailStr, ValidationError
+from pydantic_core import PydanticCustomError
 
 # from rich import print
 
@@ -19,7 +21,6 @@ database_uri = os.getenv("DEVELOPMENT_DATABASE_URI")  # Get Database uri from .e
 if not database_uri:
     raise ValueError("The environment variable 'DEVELOPMENT_DATABASE_URI' is not set")
 
-# [x] DATABASE URI TO BE A ENV VARIABLE
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_uri
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -27,6 +28,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 api = Api(app)
 db.init_app(app)
 
+# [ ] Generate requirements.txt ?
 # [ ] CORS
 
 # [ ] User authentication using PYJWT
@@ -79,6 +81,30 @@ def validation(funct):
         return funct(*args, **kwargs)
     return wrapper
 
+# Password validation
+# Checks if password is long enough, contains uppercase and lowercase letters, and has a number
+def validate_password(password: str) -> tuple[bool, list[str]]:     # use typing.Tuple and typing.List for older version of Python
+    # Returns Tuple: (is_valid: bool, errors: list[str]) - List is empty of no errors are found
+    errors = []
+
+    if len(password) < 6:
+        errors.append("Password must contain 6 or more characters")
+    if not any(c.isupper() for c in password):
+        errors.append("Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in password):
+        errors.append("Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in password):
+        errors.append("Password must contain at least one number")
+
+    return (len(errors) == 0, errors)
+    
+# Email Validation
+def validate_email(email: str) -> tuple[bool, str]:
+    try:
+        EmailStr.validate(email)    # Checks email format and DNS MX record
+        return True, ""
+    except PydanticCustomError as e:
+        return False, str(e)
 
 # [x] Modify functions that use validation decorator with table_name & all url parameters = id
 # Get, Patch, & Delete a specific user
@@ -119,9 +145,16 @@ class UserAPI(Resource):
                 # Check if attribute exists in the user instance
                 if hasattr(record, attribute):
                     # Dynamically set 'user' instance attributes
-                    # [ ] Check if hashing code is accurate
                     if attribute == "password":
-                        updated_user[attribute] = generate_password_hash(attribute,method="pbkdf2:sha256")
+                        is_password_valid, password_errors = validate_password(updated_user[attribute])
+                        if not is_password_valid:
+                            return make_response({"error": password_errors},400)  # Returns a ***list*** of errors
+                        updated_user[attribute] = generate_password_hash(updated_user[attribute],method="pbkdf2:sha256")
+                    if attribute == "email":
+                        is_email_valid, email_errors = validate_email(updated_user[attribute])
+                        if not is_email_valid:
+                            return make_response({"error":email_errors},400)
+                    # [ ] validate if user_role is in the enum
                     # if attribute == "user_role":
                     #   
                     setattr(record, attribute, updated_user[attribute])
@@ -169,15 +202,23 @@ class NewUser(Resource):
                 if field not in new_user_data:
                     return make_response({"error": f"Missing data: {field}"}, 400)
                 
-            # Validate password length
-            if len(new_user_data["password"]) < 6:
-                return make_response({"error":"Password must be more than 6 characters long"},400)
+            # Validate password
+            is_password_valid, password_errors = validate_password(new_user_data["password"])
+            if not is_password_valid:
+                return make_response({"error": password_errors},400)
+            # Password validation returns a list of errors => error[]
+
+            # Validate email
+            is_email_valid, email_errors = validate_email(new_user_data["email"])
+            if not is_email_valid:
+                return make_response({"error":email_errors},400)
+            
             # Generate password hash
             hashed_password = generate_password_hash(
                 new_user_data["password"], method="pbkdf2:sha256"
             )
             user = User(
-                user_name=new_user_data["user_name"],
+                user_name=new_user_data["user_name"],   # Raises KeyError if missing
                 user_role=new_user_data["user_role"],
                 email=new_user_data["email"],
                 # [x] Hash the password first
