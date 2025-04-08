@@ -281,6 +281,10 @@ class Bills(Resource):
             patient_name = data["patient_name"]
             patient_gender = data["patient_gender"]
             patient_age = data["patient_age"]
+            # [ ] phone number format 712356789 from form
+            # add country code
+            # number = country code(select menu??) + form input 
+            # [ ] Validate phone number lenght
             patient_phone_number = data["patient_phone_number"]
             bill_date = data["bill_date"]
             organization_id = data["organization_id"]
@@ -330,6 +334,8 @@ class Bill(Resource):
     # [ ] Non-financial data editing
     # [ ] Fill AuditLog table before applying the changes
     # [ ] Recalculate 'Organization' outsanding_balance when org_id is changed (subtract amount from previous, add amount to new org)
+    # [ ] Bill org cannot be changed if bill_status = "paid" / "partially_paid"
+    # Payment needs to be reversed then status changed to unpaid
     @validation
     def patch(self, id, record, table = "PatientBill"):
         pass
@@ -364,6 +370,8 @@ class Organizations(Resource):
         pass
 
     def post(self):
+        # number = country code(select menu??) + form input 
+            # [ ] Validate phone number lenght
         pass
 
 api.add_resource(Organizations, "/orgs")
@@ -389,6 +397,7 @@ class OrganizationAPI(Resource):
     def delete(self, id, record, table = "Organization"):
         try:
             # [ ] Deactivate organization -> NO DELETION  (user cannot add new PatientBill for new organization)  
+            pass
             # db.session.delete(org)
             # db.session.commit()
             # return make_response({"message": "Organization deleted successfully"}, 200)
@@ -421,6 +430,7 @@ class Transactions(Resource):
                                                                                     # If not, bill status = partially_paid 
 # [ ] Refunds (for inaccurate / overpaid transactions)
 # [ ] Update outstanding_balance in 'Organization' table (outstanding_balance - transaction_amount)
+# [ ] Validate file type and size (receipt upload)
     def post():
         pass
 
@@ -452,6 +462,7 @@ class BillAdjustment(Resource):
 # Reduce complexity by only using organization table for the outstanding_balance
 # Status changed to unpaid, paid_amount = 0, and payments to be re-allocated
 # Recalculation of outstanding_balance
+# [ ] Use previous_outstanding_balance(uneditable / static) and adjusted transaction_amount to set final_balance
 class TransactionAdjustment(Resource):
     pass
 
