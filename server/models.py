@@ -1,5 +1,6 @@
 from enum import Enum
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event, CheckConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import validates
 from sqlalchemy_serializer import SerializerMixin
@@ -42,6 +43,24 @@ class TransactionType(Enum):
     refund = "refund"
 
 
+allowed_table_names = ("users", "patient_bills", "transactions", "organizations")
+restricted_auditlog_columns = (
+    "user_id",
+    "bill_id",
+    "amount",
+    "status",
+    "paid_amount",
+    "created_at",
+    "updated_at",
+    "transaction_id",
+    "previous_outstanding_balance",
+    "transaction_amount",
+    "final_balance",
+    "org_id",
+    "outstanding_balance",
+)
+allowed_adjustment_columns = ("amount", "paid_amount", "transaction_amount")
+
 print(OrganizationType.corporation.name)
 print(BillStatus.unpaid.name)
 
@@ -53,7 +72,7 @@ class User(db.Model, SerializerMixin):
 
     user_id = db.Column(db.Integer, primary_key=True)
     user_name = db.Column(db.String(255), nullable=False)
-    user_role = db.Column(db.Enum(UserRole), nullable=False)
+    user_role = db.Column(db.String(15), nullable=False)
     email = db.Column(db.String(255), nullable=False, unique=True)
     password = db.Column(db.String(200), nullable=False)
 
@@ -67,29 +86,27 @@ class User(db.Model, SerializerMixin):
         "VoidBill", back_populates="user", cascade="save-update, merge"
     )
 
-    # [ ] Model Level Validation
-    @validates("email")
-    def validate_email(self, key, email):
-        if "@" not in email:
-            raise ValueError("Invalid email address")
-        return email
-    
-    # @validates("user_role")
-    # def validate_role(self, key, user_role):
-    #     if not isinstance(user_role,UserRole):
-    #         raise ValueError("Invalid role")
-    #     return user_role
-
-    @validates("user_name")
-    def validate_name(self, key, name):
-        if not isinstance(name,str) or name is None:
-            raise ValueError("Invalid Username: must be a string")
+    @validates("user_role")
+    def validate_user_role(self, key, user_role):
+        if user_role not in [
+            r.value for r in UserRole
+        ]:  # Checks value of user_role column against the values in the Enum(UserRole)
+            raise ValueError(f"Invalid Role: {user_role}")
+        return user_role
 
     serialize_rules = (
         "-logs.user",
         "-logs",
         "-adjustments",
     )  # Exclude user.logs & user.adjustments
+
+
+# @event.listens_for(User, 'before_insert')
+# @event.listens_for(User, 'before_update')
+# def validate_user_role(mapper, connection, target):
+#     if target.user_role not in [g.value for g in UserRole]:     #Checks value of user_role column against the values in the Enum(UserRole)
+#         raise ValueError(f"Invalid Role: {target.user_role}")
+
 
 # Tracks edits made to non-financial data
 class AuditLog(db.Model, SerializerMixin):
@@ -104,6 +121,7 @@ class AuditLog(db.Model, SerializerMixin):
     column_name = db.Column(db.String(255), nullable=False)
     record_id = db.Column(db.Integer, nullable=False)
     old_value = db.Column(db.String(255), nullable=False)
+    # [ ] Edited values are Integers / Numeric
     new_value = db.Column(db.String(255), nullable=False)
     timestamp = db.Column(db.DateTime, default=func.now())
 
@@ -112,6 +130,18 @@ class AuditLog(db.Model, SerializerMixin):
 
     serialize_rules = ("-user.logs",)
 
+    @validates("table_name")
+    def validate_tablename(self, key, table_name):
+        if table_name not in allowed_table_names:
+            raise ValueError(f"Invalid table name: {table_name}")
+        return table_name
+
+    @validates("column_name")
+    def validate_column_name(self, key, column_name):
+        if column_name in restricted_auditlog_columns:
+            raise ValueError(f"This column can not be edited: {column_name}")
+        return column_name
+
 
 # Bills Table (=many)
 class PatientBill(db.Model, SerializerMixin):
@@ -119,24 +149,37 @@ class PatientBill(db.Model, SerializerMixin):
 
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
-    patient_number = db.Column(db.String(255), nullable=False, unique=True)
+    patient_number = db.Column(
+        db.Integer,
+        nullable=False,
+        unique=True,
+        info={"check_constraint": "patient_number >= 0"},
+    )
     # Personal number (ID / Passport)
-    patient_id = db.Column(db.Integer, nullable=False)
+    patient_id = db.Column(db.String(15), nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
-    patient_gender = db.Column(db.Enum(GenderOption), nullable=False)
-    patient_age = db.Column(db.Integer, nullable=False)
-    patient_phone_number = db.Column(db.String, nullable=False)
+    patient_gender = db.Column(db.String(20), nullable=False)
+    patient_age = db.Column(
+        db.Integer, nullable=False, info={"check_constraint": "patient_age >= 0"}
+    )
+    patient_phone_number = db.Column(db.String(50), nullable=False)
     bill_date = db.Column(db.DateTime, nullable=False)
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
     )
-    bill_type = db.Column(db.Enum(BillType), nullable=False)
+    bill_type = db.Column(db.String(20), nullable=False)
     # amount can only be adjusted by Admin
-    amount = db.Column(db.Decimal(15, 2), nullable=False)
+    amount = db.Column(
+        db.Numeric(15, 2), nullable=False, info={"check_constraint": "amount >= 0"}
+    )
     # Status can not be edited
-    status = db.Column(db.Enum(BillStatus), nullable=False)
+    status = db.Column(db.String(20), nullable=False)
     # paid_amount = amount in the case of complete payment; otherwise, it is partail payment
-    paid_amount = db.Column(db.Decimal(15, 2), default=Decimal("0.00"))
+    paid_amount = db.Column(
+        db.Numeric(15, 2),
+        default=Decimal("0.00"),
+        info={"check_constraint": "paid_amount >= 0"},
+    )
     created_at = db.Column(db.DateTime, default=func.now())
     updated_at = db.Column(
         db.DateTime, default=func.now(), onupdate=func.now()
@@ -149,6 +192,25 @@ class PatientBill(db.Model, SerializerMixin):
 
     serialize_rules = ("-org.bills",)
 
+    @validates("patient_gender")
+    def validate_patient_gender(self, key, gender):
+        if gender not in [g.value for g in GenderOption]:
+            raise ValueError(f"Invalid gender: {gender}")
+        return gender
+
+    @validates("bill_type")
+    def validate_bill_type(self, key, type):
+        if type not in [t.value for t in BillType]:
+            raise ValueError(f"Invalid Bill Type: {type}")
+        return type
+    
+    @validates("status")
+    def validate_status(self, key, status):
+        if status not in [s.value for s in BillStatus]:
+            raise ValueError(f"Invalid Bill Status: {status}")
+        return status
+
+
 # Tracks edits made to financial data by admins
 class Adjustment(db.Model, SerializerMixin):
     __tablename__ = "adjustments"
@@ -159,8 +221,9 @@ class Adjustment(db.Model, SerializerMixin):
     table_name = db.Column(db.String(255), nullable=False)
     column_name = db.Column(db.String(255), nullable=False)
     record_id = db.Column(db.Integer, nullable=False)
-    old_value = db.Column(db.String(255), nullable=False)
-    new_value = db.Column(db.String(255), nullable=False)
+    # Adjustments are only for financial data (numbers)
+    old_value = db.Column(db.Numeric(15, 2), nullable=False)
+    new_value = db.Column(db.Numeric(15, 2), nullable=False)
     reason = db.Column(db.String(400), nullable=False)
     timestamp = db.Column(db.DateTime, default=func.now())
 
@@ -178,21 +241,21 @@ class PaidBill(db.Model, SerializerMixin):
 
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
-    patient_number = db.Column(db.String(255), nullable=False, unique=True)
+    patient_number = db.Column(db.Integer, nullable=False, unique=True)
     # Personal number (ID / Passport)
-    patient_id = db.Column(db.Integer, nullable=False)
+    patient_id = db.Column(db.String(15), nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
     patient_gender = db.Column(db.Enum(GenderOption), nullable=False)
     patient_age = db.Column(db.Integer, nullable=False)
-    patient_phone_number = db.Column(db.String, nullable=False)
+    patient_phone_number = db.Column(db.String(50), nullable=False)
     bill_date = db.Column(db.DateTime, nullable=False)
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
     )
     bill_type = db.Column(db.Enum(BillType), nullable=False)
-    amount = db.Column(db.Decimal(15, 2), nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
     status = db.Column(db.Enum(BillStatus), nullable=False)
-    paid_amount = db.Column(db.Decimal(15, 2), default=Decimal("0.00"))
+    paid_amount = db.Column(db.Numeric(15, 2), default=Decimal("0.00"))
     # Transaction that fully paid the bill
     transaction_id = db.Column(
         db.Integer, db.ForeignKey("transactions.transaction_id"), nullable=False
@@ -214,29 +277,28 @@ class PaidBill(db.Model, SerializerMixin):
 
 # Errenous bills that have been voided
 class VoidBill(db.Model, SerializerMixin):
-    __tablename__ = "paid_bills"
+    __tablename__ = "void_bills"
 
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
     voided_by = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
-    patient_number = db.Column(db.String(255), nullable=False, unique=True)
+    patient_number = db.Column(db.Integer, nullable=False, unique=True)
     # Personal number (ID / Passport)
-    patient_id = db.Column(db.Integer, nullable=False)
+    patient_id = db.Column(db.String(15), nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
     patient_gender = db.Column(db.Enum(GenderOption), nullable=False)
     patient_age = db.Column(db.Integer, nullable=False)
-    patient_phone_number = db.Column(db.String, nullable=False)
+    patient_phone_number = db.Column(db.String(50), nullable=False)
     bill_date = db.Column(db.DateTime, nullable=False)
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
     )
     bill_type = db.Column(db.Enum(BillType), nullable=False)
-    amount = db.Column(db.Decimal(15, 2), nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
     status = db.Column(db.Enum(BillStatus), nullable=False)
-    paid_amount = db.Column(db.Decimal(15, 2), default=Decimal("0.00"))
-    transaction_id = db.Column(
-        db.Integer, db.ForeignKey("transactions.transaction_id"), nullable=False
-    )
+    paid_amount = db.Column(db.Numeric(15, 2), default=Decimal("0.00"))
+    # transaction_id should be nullable in the case where a bill is not fully paid
+    transaction_id = db.Column(db.Integer, db.ForeignKey("transactions.transaction_id"))
     created_at = db.Column(db.DateTime, default=func.now())
     updated_at = db.Column(
         db.DateTime, default=func.now(), onupdate=func.now()
@@ -264,11 +326,11 @@ class Transaction(db.Model, SerializerMixin):
     #  **
     transaction_type = db.Column(db.Enum(TransactionType), nullable=False)
     # outstanding_balance before the transaction
-    previous_outstanding_balance = db.Column(db.Decimal(15, 2), nullable=False)
+    previous_outstanding_balance = db.Column(db.Numeric(15, 2), nullable=False)
     # amount to be deducted from the outstanding balance
-    transaction_amount = db.Column(db.Decimal(15, 2), nullable=False)
+    transaction_amount = db.Column(db.Numeric(15, 2), nullable=False)
     # outstanding_balance after the transaction
-    final_balance = db.Column(db.Decimal(15, 2), nullable=False)
+    final_balance = db.Column(db.Numeric(15, 2), nullable=False)
     receipt_url = db.Column(db.String(300), nullable=False)
     transaction_date = db.Column(db.DateTime, nullable=False)
 
@@ -292,7 +354,7 @@ class Organization(db.Model, SerializerMixin):
     org_email = db.Column(db.String(255), nullable=False, unique=True)
     org_phone_number = db.Column(db.String(255), nullable=False, unique=True)
     org_type = db.Column(db.Enum(OrganizationType), nullable=False)
-    outstanding_balance = db.Column(db.Decimal(15, 2), default=Decimal("0.00"))
+    outstanding_balance = db.Column(db.Numeric(15, 2), default=Decimal("0.00"))
     # [ ] soft delete flag
     # deleted_at = db.Column(db.DateTime)  # Nullable
 
