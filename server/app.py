@@ -419,6 +419,8 @@ class Transactions(Resource):
 # [ ] Handle concurrency / multiple transactions on the same org
 # amount - paid_amount = amount to be deducted from transaction amount
 # Iterate through the unpaid bills and mark them as paid / partially_paid (FIFO - start with oldest bill)
+# [ ] Change status [status == "paid"] & if [paid_amount == amount] before moving bill to PaidBills
+# [ ] Delete PaidBill from PatientBill
 # [ ] Deduct the transaction amount(var x) after each bill has been allocated payment until x = 0 OR all bills for that organization are paid
 # [ ] What happens when transaction amount is greater than outstanding_balance and all bills are paid
         # partially pay single bill with negative (-) amount = overpay

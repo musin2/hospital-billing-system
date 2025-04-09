@@ -43,7 +43,8 @@ class TransactionType(Enum):
     refund = "refund"
 
 
-allowed_table_names = ("users", "patient_bills", "transactions", "organizations")
+allowed_audit_tables = ("users", "patient_bills", "transactions", "organizations")
+allowed_adjustment_tables = ("patient_bills", "transactions")
 restricted_auditlog_columns = (
     "user_id",
     "bill_id",
@@ -132,7 +133,7 @@ class AuditLog(db.Model, SerializerMixin):
 
     @validates("table_name")
     def validate_tablename(self, key, table_name):
-        if table_name not in allowed_table_names:
+        if table_name not in allowed_audit_tables:
             raise ValueError(f"Invalid table name: {table_name}")
         return table_name
 
@@ -149,21 +150,15 @@ class PatientBill(db.Model, SerializerMixin):
 
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
-    patient_number = db.Column(
-        db.Integer,
-        nullable=False,
-        unique=True,
-        info={"check_constraint": "patient_number >= 0"},
-    )
+    patient_number = db.Column(db.String(50), nullable=False, unique=True)
     # Personal number (ID / Passport)
     patient_id = db.Column(db.String(15), nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
     patient_gender = db.Column(db.String(20), nullable=False)
-    patient_age = db.Column(
-        db.Integer, nullable=False, info={"check_constraint": "patient_age >= 0"}
-    )
+    patient_age = db.Column(db.Integer, info={"check_constraint": "patient_age >= 0"})
+    patient_birthdate = db.Column(db.Date)
     patient_phone_number = db.Column(db.String(50), nullable=False)
-    bill_date = db.Column(db.DateTime, nullable=False)
+    bill_date = db.Column(db.Date, nullable=False)
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
     )
@@ -203,7 +198,7 @@ class PatientBill(db.Model, SerializerMixin):
         if type not in [t.value for t in BillType]:
             raise ValueError(f"Invalid Bill Type: {type}")
         return type
-    
+
     @validates("status")
     def validate_status(self, key, status):
         if status not in [s.value for s in BillStatus]:
@@ -234,6 +229,17 @@ class Adjustment(db.Model, SerializerMixin):
 
     serialize_rules = ("-user.adjustments",)
 
+    @validates("table_name")
+    def validate_table(self, key, table):
+        if table not in allowed_adjustment_tables:
+            raise ValueError(f"Invalid Table Name: {table}")
+        return table
+
+    @validates("column_name")
+    def validate_column(self, key, column):
+        if column not in allowed_adjustment_columns:
+            raise ValueError(f"Cannot adjust column: {column}")
+
 
 # PatientBill after full payment (=many)
 class PaidBill(db.Model, SerializerMixin):
@@ -241,21 +247,29 @@ class PaidBill(db.Model, SerializerMixin):
 
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
-    patient_number = db.Column(db.Integer, nullable=False, unique=True)
+    patient_number = db.Column(db.String(50), nullable=False, unique=True)
     # Personal number (ID / Passport)
     patient_id = db.Column(db.String(15), nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
-    patient_gender = db.Column(db.Enum(GenderOption), nullable=False)
-    patient_age = db.Column(db.Integer, nullable=False)
+    patient_gender = db.Column(db.String(20), nullable=False)
+    patient_age = db.Column(db.Integer, info={"check_constraint": "patient_age >= 0"})
+    patient_birthdate = db.Column(db.Date)
     patient_phone_number = db.Column(db.String(50), nullable=False)
-    bill_date = db.Column(db.DateTime, nullable=False)
+    bill_date = db.Column(db.Date, nullable=False)
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
     )
-    bill_type = db.Column(db.Enum(BillType), nullable=False)
-    amount = db.Column(db.Numeric(15, 2), nullable=False)
-    status = db.Column(db.Enum(BillStatus), nullable=False)
-    paid_amount = db.Column(db.Numeric(15, 2), default=Decimal("0.00"))
+    bill_type = db.Column(db.String(20), nullable=False)
+    # [ ] Validate paid_amount == amount & status == "paid" in flask app
+    amount = db.Column(
+        db.Numeric(15, 2), nullable=False, info={"check_constraint": "amount >= 0"}
+    )
+    status = db.Column(db.String(20), nullable=False)
+    paid_amount = db.Column(
+        db.Numeric(15, 2),
+        default=Decimal("0.00"),
+        info={"check_constraint": "paid_amount >= 0"},
+    )
     # Transaction that fully paid the bill
     transaction_id = db.Column(
         db.Integer, db.ForeignKey("transactions.transaction_id"), nullable=False
@@ -282,21 +296,28 @@ class VoidBill(db.Model, SerializerMixin):
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
     voided_by = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
-    patient_number = db.Column(db.Integer, nullable=False, unique=True)
+    patient_number = db.Column(db.String(50), nullable=False)
     # Personal number (ID / Passport)
     patient_id = db.Column(db.String(15), nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
-    patient_gender = db.Column(db.Enum(GenderOption), nullable=False)
-    patient_age = db.Column(db.Integer, nullable=False)
+    patient_gender = db.Column(db.String(20), nullable=False)
+    patient_age = db.Column(db.Integer, info={"check_constraint": "patient_age >= 0"})
+    patient_birthdate = db.Column(db.Date)
     patient_phone_number = db.Column(db.String(50), nullable=False)
-    bill_date = db.Column(db.DateTime, nullable=False)
+    bill_date = db.Column(db.Date, nullable=False)
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
     )
-    bill_type = db.Column(db.Enum(BillType), nullable=False)
-    amount = db.Column(db.Numeric(15, 2), nullable=False)
-    status = db.Column(db.Enum(BillStatus), nullable=False)
-    paid_amount = db.Column(db.Numeric(15, 2), default=Decimal("0.00"))
+    bill_type = db.Column(db.String(20), nullable=False)
+    amount = db.Column(
+        db.Numeric(15, 2), nullable=False, info={"check_constraint": "amount >= 0"}
+    )
+    status = db.Column(db.String(20), nullable=False)
+    paid_amount = db.Column(
+        db.Numeric(15, 2),
+        default=Decimal("0.00"),
+        info={"check_constraint": "paid_amount >= 0"},
+    )
     # transaction_id should be nullable in the case where a bill is not fully paid
     transaction_id = db.Column(db.Integer, db.ForeignKey("transactions.transaction_id"))
     created_at = db.Column(db.DateTime, default=func.now())
@@ -328,7 +349,9 @@ class Transaction(db.Model, SerializerMixin):
     # outstanding_balance before the transaction
     previous_outstanding_balance = db.Column(db.Numeric(15, 2), nullable=False)
     # amount to be deducted from the outstanding balance
-    transaction_amount = db.Column(db.Numeric(15, 2), nullable=False)
+    transaction_amount = db.Column(
+        db.Numeric(15, 2), nullable=False, info={"check_constraint": "amount >= 0"}
+    )
     # outstanding_balance after the transaction
     final_balance = db.Column(db.Numeric(15, 2), nullable=False)
     receipt_url = db.Column(db.String(300), nullable=False)
