@@ -358,7 +358,8 @@ class Bill(Resource):
 api.add_resource(Bill, "/bill/<int:id>")
 
 # [ ] Modify functions that use validation decorator with table_name & all url parameters = id
-# For duplicate / invalid bills, 
+# For duplicate / invalid bills,
+# [ ] How to handle partially or full_paid void bills 
 class Void(Resource):
     pass
 
@@ -372,6 +373,9 @@ class Organizations(Resource):
     def post(self):
         # number = country code(select menu??) + form input 
             # [ ] Validate phone number lenght
+        is_email_valid, email_errors = validate_email()#add email string
+        if not is_email_valid:
+            return make_response({"error":email_errors}, 400)
         pass
 
 api.add_resource(Organizations, "/orgs")
@@ -420,6 +424,7 @@ class Transactions(Resource):
 # amount - paid_amount = amount to be deducted from transaction amount
 # Iterate through the unpaid bills and mark them as paid / partially_paid (FIFO - start with oldest bill)
 # [ ] Change status [status == "paid"] & if [paid_amount == amount] before moving bill to PaidBills
+# [ ] Make sure paid_amount is not greater than(>) amount
 # [ ] Delete PaidBill from PatientBill
 # [ ] Deduct the transaction amount(var x) after each bill has been allocated payment until x = 0 OR all bills for that organization are paid
 # [ ] What happens when transaction amount is greater than outstanding_balance and all bills are paid
