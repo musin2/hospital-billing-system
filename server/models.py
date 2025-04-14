@@ -62,12 +62,9 @@ restricted_auditlog_columns = (
 )
 allowed_adjustment_columns = ("amount", "paid_amount", "transaction_amount")
 
-print(OrganizationType.corporation.name)
-print(BillStatus.unpaid.name)
-
 
 # Users table
-# [ ] Confirm if columns are complete
+# [x] Confirm if columns are complete
 class User(db.Model, SerializerMixin):
     __tablename__ = "users"
 
@@ -127,7 +124,7 @@ class AuditLog(db.Model, SerializerMixin):
     timestamp = db.Column(db.DateTime, default=func.now())
 
     user = db.relationship("User", back_populates="logs", cascade="save-update, merge")
-    # [ ] Model Level Validation
+    # [x] Model Level Validation
 
     serialize_rules = ("-user.logs",)
 
@@ -148,9 +145,15 @@ class AuditLog(db.Model, SerializerMixin):
 class PatientBill(db.Model, SerializerMixin):
     __tablename__ = "patient_bills"
 
+    __table_args__ = (
+        CheckConstraint("patient_age >= 0", name="check_patient_age_positive"),
+        CheckConstraint("amount >= 0", name="check_amount_positive"),
+        CheckConstraint("paid_amount >= 0", name="check_paid_amount_positive"),
+    )
+
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
-    patient_number = db.Column(db.String(50), nullable=False, unique=True)
+    patient_number = db.Column(db.String(50), nullable=False, unique=True, index=True)
     # Personal number (ID / Passport)
     patient_id = db.Column(db.String(15), nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
@@ -173,6 +176,7 @@ class PatientBill(db.Model, SerializerMixin):
     paid_amount = db.Column(
         db.Numeric(15, 2),
         default=Decimal("0.00"),
+        nullable=False,
         info={"check_constraint": "paid_amount >= 0"},
     )
     created_at = db.Column(db.DateTime, default=func.now())
@@ -183,7 +187,7 @@ class PatientBill(db.Model, SerializerMixin):
     org = db.relationship(
         "Organization", back_populates="bills", cascade="save-update, merge"
     )
-    # [ ] Model Level Validation
+    # [x] Model Level Validation
 
     serialize_rules = ("-org.bills",)
 
@@ -225,7 +229,7 @@ class Adjustment(db.Model, SerializerMixin):
     user = db.relationship(
         "User", back_populates="adjustments", cascade="save-update, merge"
     )
-    # [ ] Model Level Validation
+    # [x] Model Level Validation
 
     serialize_rules = ("-user.adjustments",)
 
@@ -245,9 +249,17 @@ class Adjustment(db.Model, SerializerMixin):
 class PaidBill(db.Model, SerializerMixin):
     __tablename__ = "paid_bills"
 
+    __table_args__ = (
+        CheckConstraint("patient_age >= 0", name="check_patient_age_positive"),
+        CheckConstraint("amount >= 0", name="check_amount_positive"),
+        CheckConstraint("paid_amount >= 0", name="check_paid_amount_positive"),
+        CheckConstraint("status = 'paid'", name="check_status_paid"),
+        CheckConstraint("paid_amount = amount", name="check_paid_bill_full_payment"),
+    )
+
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
-    patient_number = db.Column(db.String(50), nullable=False, unique=True)
+    patient_number = db.Column(db.String(50), nullable=False, unique=True, index=True)
     # Personal number (ID / Passport)
     patient_id = db.Column(db.String(15), nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
@@ -268,6 +280,7 @@ class PaidBill(db.Model, SerializerMixin):
     paid_amount = db.Column(
         db.Numeric(15, 2),
         default=Decimal("0.00"),
+        nullable=False,
         info={"check_constraint": "paid_amount >= 0"},
     )
     # Transaction that fully paid the bill
@@ -293,6 +306,13 @@ class PaidBill(db.Model, SerializerMixin):
 class VoidBill(db.Model, SerializerMixin):
     __tablename__ = "void_bills"
 
+    __table_args__ = (
+        CheckConstraint("patient_age >= 0", name="check_patient_age_positive"),
+        CheckConstraint("amount >= 0", name="check_amount_positive"),
+        CheckConstraint("paid_amount >= 0", name="check_paid_amount_positive"),
+        CheckConstraint("status = 'void'", name="check_void_bill_status_paid"),
+    )
+
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
     voided_by = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
@@ -316,6 +336,7 @@ class VoidBill(db.Model, SerializerMixin):
     paid_amount = db.Column(
         db.Numeric(15, 2),
         default=Decimal("0.00"),
+        nullable=False,
         info={"check_constraint": "paid_amount >= 0"},
     )
     # transaction_id should be nullable in the case where a bill is not fully paid
@@ -324,15 +345,15 @@ class VoidBill(db.Model, SerializerMixin):
     updated_at = db.Column(
         db.DateTime, default=func.now(), onupdate=func.now()
     )  # Nullable
-    # [ ] Set voided timestamp when bill status = void
-    voided_at = db.Column(db.DateTime)
+    # [x] Set voided timestamp when bill status = void
+    voided_at = db.Column(db.DateTime, default=func.now())
 
     org = db.relationship(
-        "Organization", back_populates="paid_bills", cascade="save-update, merge"
+        "Organization", back_populates="voided_bills", cascade="save-update, merge"
     )
     user = db.relationship("User", back_populates="voids", cascade="save-update, merge")
 
-    serialize_rules = ("-org.bills",)
+    serialize_rules = ("-org.voided_bills",)
 
 
 # Transactions table (=many) - Transactions on total bill for an organization [full or partial payments]
@@ -340,22 +361,26 @@ class VoidBill(db.Model, SerializerMixin):
 class Transaction(db.Model, SerializerMixin):
     __tablename__ = "transactions"
 
+    __table_args__ = (CheckConstraint("transaction_amount >= 0", name="check_transaction_amount_positive"),)
+
     transaction_id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(
         db.Integer, db.ForeignKey("organizations.org_id"), nullable=False
     )
     #  **
-    transaction_type = db.Column(db.Enum(TransactionType), nullable=False)
+    transaction_type = db.Column(db.String(20), nullable=False)
     # outstanding_balance before the transaction
     previous_outstanding_balance = db.Column(db.Numeric(15, 2), nullable=False)
     # amount to be deducted from the outstanding balance
     transaction_amount = db.Column(
-        db.Numeric(15, 2), nullable=False, info={"check_constraint": "amount >= 0"}
+        db.Numeric(15, 2),
+        nullable=False,
+        info={"check_constraint": "transaction_amount >= 0"},
     )
     # outstanding_balance after the transaction
     final_balance = db.Column(db.Numeric(15, 2), nullable=False)
     receipt_url = db.Column(db.String(300), nullable=False)
-    transaction_date = db.Column(db.DateTime, nullable=False)
+    transaction_date = db.Column(db.Date, nullable=False)
 
     org = db.relationship(
         "Organization", back_populates="transactions", cascade="save-update, merge"
@@ -363,9 +388,15 @@ class Transaction(db.Model, SerializerMixin):
     paid_bills = db.relationship(
         "PaidBill", back_populates="transaction", cascade="save-update, merge"
     )
-    # [ ] Model Level Validation
+    # [x] Model Level Validation
 
     serialize_rules = ("-org.transactions",)
+
+    @validates("transaction_type")
+    def validate_type(self, key, type):
+        if type not in [t.value for t in TransactionType]:
+            raise ValueError(f"Invalid Transaction Type: {type}")
+        return type
 
 
 # Organization Table (-one)
@@ -376,8 +407,10 @@ class Organization(db.Model, SerializerMixin):
     org_name = db.Column(db.String(255), nullable=False)
     org_email = db.Column(db.String(255), nullable=False, unique=True)
     org_phone_number = db.Column(db.String(255), nullable=False, unique=True)
-    org_type = db.Column(db.Enum(OrganizationType), nullable=False)
-    outstanding_balance = db.Column(db.Numeric(15, 2), default=Decimal("0.00"))
+    org_type = db.Column(db.String(50), nullable=False)
+    outstanding_balance = db.Column(
+        db.Numeric(15, 2), default=Decimal("0.00"), nullable=False
+    )
     # [ ] soft delete flag
     # deleted_at = db.Column(db.DateTime)  # Nullable
 
@@ -387,12 +420,21 @@ class Organization(db.Model, SerializerMixin):
     paid_bills = db.relationship(
         "PaidBill", back_populates="org", cascade="save-update, merge"
     )
+    voided_bills = db.relationship(
+        "VoidBill", back_populates="org", cascade="save-update, merge"
+    )
     transactions = db.relationship(
         "Transaction", back_populates="org", cascade="save-update, merge"
     )
-    # [ ] Model Level Validation
+    # [x] Model Level Validation
 
     serialize_rules = ("-bills.org", "-transactions.org", "-paid_bills.org")
+
+    @validates("org_type")
+    def validate_type(self, key, type):
+        if type not in [t.value for t in OrganizationType]:
+            raise ValueError(f"Invalid Organization Type: {type}")
+        return type
 
 
 # [x] RELATIONSHIPS
