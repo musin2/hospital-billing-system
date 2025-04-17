@@ -2,12 +2,22 @@ from flask import Flask, request, make_response
 from flask_restx import Resource, Api
 from flask_sqlalchemy import SQLAlchemy
 import os
-from models import db, User, PatientBill, Organization, AuditLog, Adjustment, PaidBill, VoidBill
+from models import (
+    db,
+    User,
+    PatientBill,
+    Organization,
+    AuditLog,
+    Adjustment,
+    PaidBill,
+    VoidBill,
+)
 from datetime import datetime
 from dotenv import load_dotenv
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash
 from functools import wraps
+from swagger_api_models import create_user_model, create_user_public_model
 from pydantic import EmailStr, ValidationError
 from pydantic_core import PydanticCustomError
 
@@ -25,7 +35,11 @@ if not database_uri:
 app.config["SQLALCHEMY_DATABASE_URI"] = database_uri
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-api = Api(app)
+api = Api(
+    app,
+    title="Hospital Billing System API",
+    description="API for managing the bills of patients and the organizations that represent them",
+)
 db.init_app(app)
 
 # [ ] Generate requirements.txt ?
@@ -33,57 +47,77 @@ db.init_app(app)
 
 # [ ] User authentication using PYJWT
 
-# Function that validates the object passed from the validation decorator 
+
+# Function that validates the object passed from the validation decorator
 def check_record(object):
     if object is None:
-        return make_response({"error":"Record not found"},404)
-    if not isinstance(object,(Organization,User,Transaction,AuditLog,PatientBill,Adjustment,PaidBill,VoidBill)):
-        return make_response({"error":"Invalid record type"},404)
+        return make_response({"error": "Record not found"}, 404)
+    if not isinstance(
+        object,
+        (
+            Organization,
+            User,
+            Transaction,
+            AuditLog,
+            PatientBill,
+            Adjustment,
+            PaidBill,
+            VoidBill,
+        ),
+    ):
+        return make_response({"error": "Invalid record type"}, 404)
     # Check if record is voided
-    if hasattr(object,"voided_at") and object.voided_at is not None:
-        return make_response({"error":"Record is  invalid (void)"},400)
+    if hasattr(object, "voided_at") and object.voided_at is not None:
+        return make_response({"error": "Record is  invalid (void)"}, 400)
     return None
+
 
 # Decorator function for validation when looking up records with URL parameter
 def validation(funct):
     @wraps(funct)
-    def wrapper(*args,**kwargs):
-        id = kwargs.get('id')
-        table = kwargs.get('table')
+    def wrapper(*args, **kwargs):
+        id = kwargs.get("id")
+        table = kwargs.get("table")
         record = None
-        
+
         if id is None or not isinstance(id, int) or id < 0:
-            return make_response({"error":f"Invalid {table} ID"},400)
-        
+            return make_response({"error": f"Invalid {table} ID"}, 400)
+
         if table == "Organization":
-            record =  Organization.query.filter_by(org_id = id).first()	
+            record = Organization.query.filter_by(org_id=id).first()
         elif table == "User":
-            record = User.query.filter_by(user_id = id).first()
+            record = User.query.filter_by(user_id=id).first()
         elif table == "Transaction":
-            record = Transaction.query.filter_by(transaction_id = id).first()
+            record = Transaction.query.filter_by(transaction_id=id).first()
         elif table == "AuditLog":
-            record = AuditLog.query.filter_by(log_id = id).first()
+            record = AuditLog.query.filter_by(log_id=id).first()
         elif table == "PatientBill":
-            record = PatientBill.query.filter_by(bill_id = id).first()
+            record = PatientBill.query.filter_by(bill_id=id).first()
         elif table == "Adjustment":
-            record = Adjustment.query.filter_by(adjustment_id = id).first()
+            record = Adjustment.query.filter_by(adjustment_id=id).first()
         elif table == "PaidBill":
-            record = PaidBill.query.filter_by(bill_id = id).first()
+            record = PaidBill.query.filter_by(bill_id=id).first()
         elif table == "VoidBill":
-            record = VoidBill.query.filter_by(bill_id = id).first()
+            record = VoidBill.query.filter_by(bill_id=id).first()
         else:
-            return make_response({"error":"Invalid Table"},400)
+            return make_response({"error": "Invalid Table"}, 400)
         error_response = check_record(record)
-		
+
         if error_response:
             return error_response
-        kwargs['record'] = record
+        kwargs["record"] = record
         return funct(*args, **kwargs)
+
     return wrapper
+
 
 # Password validation
 # Checks if password is long enough, contains uppercase and lowercase letters, and has a number
-def validate_password(password: str) -> tuple[bool, list[str]]:     # use typing.Tuple and typing.List for older version of Python
+def validate_password(
+    password: str,
+) -> tuple[
+    bool, list[str]
+]:  # use typing.Tuple and typing.List for older version of Python
     # Returns Tuple: (is_valid: bool, errors: list[str]) - List is empty of no errors are found
     errors = []
 
@@ -97,32 +131,34 @@ def validate_password(password: str) -> tuple[bool, list[str]]:     # use typing
         errors.append("Password must contain at least one number")
 
     return (len(errors) == 0, errors)
-    
+
+
 # Email Validation
 def validate_email(email: str) -> tuple[bool, str]:
     try:
-        EmailStr.validate(email)    # Checks email format and DNS MX record
+        EmailStr.validate(email)  # Checks email format and DNS MX record
         return True, ""
     except PydanticCustomError as e:
         return False, str(e)
 
+# Namespaces
 # [x] Modify functions that use validation decorator with table_name & all url parameters = id
 # Get, Patch, & Delete a specific user
 class UserAPI(Resource):
 
     @validation
-    def get(self, id, record, table = "User"):
+    def get(self, id, record, table="User"):
         try:
             return make_response(record.to_dict(), 200)
 
         except Exception as e:
             # Return error message if something goes wrong
             return make_response({"error": str(e)}, 500)
-        
+
     # [ ] Fill AuditLog table before applying the changes
     # [ ] Check dynamic setting of attributes (is appropriate / secure ?)
     @validation
-    def patch(self, id, record, table = "User"):
+    def patch(self, id, record, table="User"):
         try:
             # [ ] Admin only edits - all
             # [ ] Check if current user is an admin
@@ -135,28 +171,37 @@ class UserAPI(Resource):
                 or not updated_user
             ):
                 return make_response({"error": "Invalid JSON data"}, 400)
-            
-            allowed_fields = ("user_name","user_role", "email", "password")
 
+            allowed_fields = ("user_name", "user_role", "email", "password")
 
             for attribute in updated_user:
                 if attribute not in allowed_fields:
-                    return make_response({"error":f"Cannot update User's '{attribute}'"},403)
+                    return make_response(
+                        {"error": f"Cannot update User's '{attribute}'"}, 403
+                    )
                 # Check if attribute exists in the user instance
                 if hasattr(record, attribute):
                     # Dynamically set 'user' instance attributes
                     if attribute == "password":
-                        is_password_valid, password_errors = validate_password(updated_user[attribute])
+                        is_password_valid, password_errors = validate_password(
+                            updated_user[attribute]
+                        )
                         if not is_password_valid:
-                            return make_response({"error": password_errors},400)  # Returns a ***list*** of errors
-                        updated_user[attribute] = generate_password_hash(updated_user[attribute],method="pbkdf2:sha256")
+                            return make_response(
+                                {"error": password_errors}, 400
+                            )  # Returns a ***list*** of errors
+                        updated_user[attribute] = generate_password_hash(
+                            updated_user[attribute], method="pbkdf2:sha256"
+                        )
                     if attribute == "email":
-                        is_email_valid, email_errors = validate_email(updated_user[attribute])
+                        is_email_valid, email_errors = validate_email(
+                            updated_user[attribute]
+                        )
                         if not is_email_valid:
-                            return make_response({"error":email_errors},400)
+                            return make_response({"error": email_errors}, 400)
                     # [ ] validate if user_role is in the enum
                     # if attribute == "user_role":
-                    #   
+                    #
                     setattr(record, attribute, updated_user[attribute])
                 else:
                     return make_response(
@@ -170,7 +215,7 @@ class UserAPI(Resource):
             return make_response({"error": str(e)}, 500)
 
     @validation
-    def delete(self, id, record, table = "User"):
+    def delete(self, id, record, table="User"):
         try:
             db.session.delete(record)
             db.session.commit()
@@ -179,6 +224,7 @@ class UserAPI(Resource):
         except Exception as e:
             db.session.rollback()
             return make_response({"error": str(e)}, 500)
+
 
 api.add_resource(UserAPI, "/user/<int:id>")
 
@@ -196,29 +242,31 @@ class NewUser(Resource):
             ):
                 return make_response({"error": "Invalid JSON data"}, 400)
             # Validate user data
-            #[ ] Validate data type for each field
+            # [ ] Validate data type for each field
             required_fields = ["user_name", "user_role", "email", "password"]
             for field in required_fields:
                 if field not in new_user_data:
                     return make_response({"error": f"Missing data: {field}"}, 400)
-                
+
             # Validate password
-            is_password_valid, password_errors = validate_password(new_user_data["password"])
+            is_password_valid, password_errors = validate_password(
+                new_user_data["password"]
+            )
             if not is_password_valid:
-                return make_response({"error": password_errors},400)
+                return make_response({"error": password_errors}, 400)
             # Password validation returns a list of errors => error[]
 
             # Validate email
             is_email_valid, email_errors = validate_email(new_user_data["email"])
             if not is_email_valid:
-                return make_response({"error":email_errors},400)
-            
+                return make_response({"error": email_errors}, 400)
+
             # Generate password hash
             hashed_password = generate_password_hash(
                 new_user_data["password"], method="pbkdf2:sha256"
             )
             user = User(
-                user_name=new_user_data["user_name"],   # Raises KeyError if missing
+                user_name=new_user_data["user_name"],  # Raises KeyError if missing
                 user_role=new_user_data["user_role"],
                 email=new_user_data["email"],
                 # [x] Hash the password first
@@ -233,6 +281,7 @@ class NewUser(Resource):
         except Exception as e:
             db.session.rollback()
             return make_response({"error": str(e)}, 500)
+
 
 api.add_resource(NewUser, "/user")
 
@@ -283,7 +332,7 @@ class Bills(Resource):
             patient_age = data["patient_age"]
             # [ ] phone number format 712356789 from form
             # add country code
-            # number = country code(select menu??) + form input 
+            # number = country code(select menu??) + form input
             # [ ] Validate phone number lenght
             patient_phone_number = data["patient_phone_number"]
             bill_date = data["bill_date"]
@@ -320,12 +369,13 @@ class Bills(Resource):
 
 api.add_resource(Bills, "/bills")
 
+
 # [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 # Patch, delete & get individual bill using id parameter
 class Bill(Resource):
 
     # [x] Updated at => func.now() - database level
-    # [ ] void billl ->  Move Bill to VoidBill , fill adjustments / AuditLog table 
+    # [ ] void billl ->  Move Bill to VoidBill , fill adjustments / AuditLog table
     # [ ] Delete voided PatientBill ?
     # Organization.outstanding_balance - void Bill amount
     # Bill is void if the wrong patient or amount was recorded
@@ -337,16 +387,16 @@ class Bill(Resource):
     # [ ] Bill org cannot be changed if bill_status = "paid" / "partially_paid"
     # Payment needs to be reversed then status changed to unpaid
     @validation
-    def patch(self, id, record, table = "PatientBill"):
+    def patch(self, id, record, table="PatientBill"):
         pass
 
     @validation
-    def delete(self, id, record, table = "PatientBill"):
+    def delete(self, id, record, table="PatientBill"):
         # [ ] Cannot Delete Bill??
         pass
 
     @validation
-    def get(self, id, record, table = "PatientBill"):
+    def get(self, id, record, table="PatientBill"):
         try:
             # [ ] Bill ID
             record = PatientBill.query.filter_by(bill_id=id).first()
@@ -357,13 +407,16 @@ class Bill(Resource):
 
 api.add_resource(Bill, "/bill/<int:id>")
 
+
 # [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 # For duplicate / invalid bills,
-# [ ] How to handle partially or full_paid void bills 
+# [ ] How to handle partially or full_paid void bills
 class Void(Resource):
     pass
 
+
 api.add_resource(Void, "/void/<int:id>")
+
 
 # Get all organizations and create a new organization (corporate client)
 class Organizations(Resource):
@@ -371,21 +424,23 @@ class Organizations(Resource):
         pass
 
     def post(self):
-        # number = country code(select menu??) + form input 
-            # [ ] Validate phone number lenght
-        is_email_valid, email_errors = validate_email()#add email string
+        # number = country code(select menu??) + form input
+        # [ ] Validate phone number lenght
+        is_email_valid, email_errors = validate_email()  # add email string
         if not is_email_valid:
-            return make_response({"error":email_errors}, 400)
+            return make_response({"error": email_errors}, 400)
         pass
 
+
 api.add_resource(Organizations, "/orgs")
+
 
 # [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 # Get, Patch, & Delete a specific organization
 class OrganizationAPI(Resource):
-    
+
     @validation
-    def get(self, id, record, table = "Organization"):
+    def get(self, id, record, table="Organization"):
         try:
             return make_response(record.to_dict(), 200)
         except Exception as e:
@@ -394,13 +449,13 @@ class OrganizationAPI(Resource):
     # [ ] Non critical(financial) fields are editable by the admin
     # [ ] Fill AuditLog before applying the changes
     @validation
-    def patch(self, id, record, table = "Organization"):
+    def patch(self, id, record, table="Organization"):
         pass
 
     @validation
-    def delete(self, id, record, table = "Organization"):
+    def delete(self, id, record, table="Organization"):
         try:
-            # [ ] Deactivate organization -> NO DELETION  (user cannot add new PatientBill for new organization)  
+            # [ ] Deactivate organization -> NO DELETION  (user cannot add new PatientBill for new organization)
             pass
             # db.session.delete(org)
             # db.session.commit()
@@ -412,57 +467,62 @@ class OrganizationAPI(Resource):
 
 api.add_resource(OrganizationAPI, "/org/<int:id>")
 
+
 class Transactions(Resource):
     def get():
         pass
 
-# [ ] Reversing Transaction for wrong Organization
-# If a transaction is recorded incorrectly, create a reversing transaction (-ve transaction amount??)
-                                         # Then create the correct transaction 
-# [ ] Validate that the previous_outstanding_balance in the Transactions table matches the actual balance(outstanding_balance) at the time of the transaction
-# [ ] Handle concurrency / multiple transactions on the same org
-# amount - paid_amount = amount to be deducted from transaction amount
-# Iterate through the unpaid bills and mark them as paid / partially_paid (FIFO - start with oldest bill)
-# [ ] Change status [status == "paid"] & if [paid_amount == amount] before moving bill to PaidBills
-# [ ] Make sure paid_amount is not greater than(>) amount
-# [ ] Delete PaidBill from PatientBill
-# [ ] Deduct the transaction amount(var x) after each bill has been allocated payment until x = 0 OR all bills for that organization are paid
-# [ ] What happens when transaction amount is greater than outstanding_balance and all bills are paid
-        # partially pay single bill with negative (-) amount = overpay
-        # sum of unpaid bills = -(overpay) 
-        # outstanding_balance = -(overpay) 
-# [ ] Subtract remaining_amount (amount - paid_amount) from var x
-# [ ] Update paid_amount in 'PatientBill' table
-# [ ] Move PateintBill to PaidBill (sequential - via date) & change bill status*** if transaction amount > or = PatientBill amount 
-                                                                                    # If not, bill status = partially_paid 
-# [ ] Refunds (for inaccurate / overpaid transactions)
-# [ ] Update outstanding_balance in 'Organization' table (outstanding_balance - transaction_amount)
-# [ ] Validate file type and size (receipt upload)
+    # [ ] Reversing Transaction for wrong Organization
+    # If a transaction is recorded incorrectly, create a reversing transaction (-ve transaction amount??)
+    # Then create the correct transaction
+    # [ ] Validate that the previous_outstanding_balance in the Transactions table matches the actual balance(outstanding_balance) at the time of the transaction
+    # [ ] Handle concurrency / multiple transactions on the same org
+    # amount - paid_amount = amount to be deducted from transaction amount
+    # Iterate through the unpaid bills and mark them as paid / partially_paid (FIFO - start with oldest bill)
+    # [ ] Change status [status == "paid"] & if [paid_amount == amount] before moving bill to PaidBills
+    # [ ] Make sure paid_amount is not greater than(>) amount
+    # [ ] Delete PaidBill from PatientBill
+    # [ ] Deduct the transaction amount(var x) after each bill has been allocated payment until x = 0 OR all bills for that organization are paid
+    # [ ] What happens when transaction amount is greater than outstanding_balance and all bills are paid
+    # partially pay single bill with negative (-) amount = overpay
+    # sum of unpaid bills = -(overpay)
+    # outstanding_balance = -(overpay)
+    # [ ] Subtract remaining_amount (amount - paid_amount) from var x
+    # [ ] Update paid_amount in 'PatientBill' table
+    # [ ] Move PateintBill to PaidBill (sequential - via date) & change bill status*** if transaction amount > or = PatientBill amount
+    # If not, bill status = partially_paid
+    # [ ] Refunds (for inaccurate / overpaid transactions)
+    # [ ] Update outstanding_balance in 'Organization' table (outstanding_balance - transaction_amount)
+    # [ ] Validate file type and size (receipt upload)
     def post():
         pass
 
-api.add_resource(Transactions,"/transactions")
+
+api.add_resource(Transactions, "/transactions")
+
 
 # [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 class Transaction(Resource):
     # [ ] Fill AuditLog Table before applying changes
     # [ ] Changing Organization_id will require reversal of previous transaction, reinstation of PaidBills, and re-allocation of PatientBills
     @validation
-    def patch(self, id, record, table = "Transaction"):
+    def patch(self, id, record, table="Transaction"):
         pass
 
     @validation
-    def get(self, id, record, table = "Transaction"):
+    def get(self, id, record, table="Transaction"):
         pass
 
-api.add_resource(Transaction,"/transaction/<int:id>")
+
+api.add_resource(Transaction, "/transaction/<int:id>")
 
 
 # [ ] Adjustments (admin only feature)
 # Adjustments create a record for a change in critical-fields (financial data) and apply the change
-    # [ ] Recalculate outstanding_balance after PatientBill adjustment
+# [ ] Recalculate outstanding_balance after PatientBill adjustment
 class BillAdjustment(Resource):
     pass
+
 
 # [ ] Changing transaction amount will require require PaidBills to move back to PatientBill
 # [ ] Manually run code to assign payment to bills *
@@ -472,7 +532,6 @@ class BillAdjustment(Resource):
 # [ ] Use previous_outstanding_balance(uneditable / static) and adjusted transaction_amount to set final_balance
 class TransactionAdjustment(Resource):
     pass
-
 
 
 # [ ] Invoice generator
