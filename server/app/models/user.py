@@ -1,4 +1,4 @@
-from ..extensions import db
+from app.extensions import db
 from sqlalchemy_serializer import SerializerMixin
 from sqlalchemy.orm import validates
 from enum import Enum

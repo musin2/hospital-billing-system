@@ -1,4 +1,4 @@
-from ..extensions import db
+from app.extensions import db
 from sqlalchemy.orm import validates
 from sqlalchemy.sql import func
 from sqlalchemy_serializer import SerializerMixin
