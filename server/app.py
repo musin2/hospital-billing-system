@@ -73,7 +73,7 @@ def check_record(object):
 
 
 # Decorator function for validation when looking up records with URL parameter
-def validation(funct):
+def validate_record(funct):
     @wraps(funct)
     def wrapper(*args, **kwargs):
         id = kwargs.get("id")
@@ -146,7 +146,7 @@ def validate_email(email: str) -> tuple[bool, str]:
 # Get, Patch, & Delete a specific user
 class UserAPI(Resource):
 
-    @validation
+    @validate_record
     def get(self, id, record, table="User"):
         try:
             return make_response(record.to_dict(), 200)
@@ -157,7 +157,7 @@ class UserAPI(Resource):
 
     # [ ] Fill AuditLog table before applying the changes
     # [ ] Check dynamic setting of attributes (is appropriate / secure ?)
-    @validation
+    @validate_record
     def patch(self, id, record, table="User"):
         try:
             # [ ] Admin only edits - all
@@ -214,7 +214,7 @@ class UserAPI(Resource):
             db.session.rollback()
             return make_response({"error": str(e)}, 500)
 
-    @validation
+    @validate_record
     def delete(self, id, record, table="User"):
         try:
             db.session.delete(record)
@@ -386,16 +386,16 @@ class Bill(Resource):
     # [ ] Recalculate 'Organization' outsanding_balance when org_id is changed (subtract amount from previous, add amount to new org)
     # [ ] Bill org cannot be changed if bill_status = "paid" / "partially_paid"
     # Payment needs to be reversed then status changed to unpaid
-    @validation
+    @validate_record
     def patch(self, id, record, table="PatientBill"):
         pass
 
-    @validation
+    @validate_record
     def delete(self, id, record, table="PatientBill"):
         # [ ] Cannot Delete Bill??
         pass
 
-    @validation
+    @validate_record
     def get(self, id, record, table="PatientBill"):
         try:
             # [ ] Bill ID
@@ -439,7 +439,7 @@ api.add_resource(Organizations, "/orgs")
 # Get, Patch, & Delete a specific organization
 class OrganizationAPI(Resource):
 
-    @validation
+    @validate_record
     def get(self, id, record, table="Organization"):
         try:
             return make_response(record.to_dict(), 200)
@@ -448,11 +448,11 @@ class OrganizationAPI(Resource):
 
     # [ ] Non critical(financial) fields are editable by the admin
     # [ ] Fill AuditLog before applying the changes
-    @validation
+    @validate_record
     def patch(self, id, record, table="Organization"):
         pass
 
-    @validation
+    @validate_record
     def delete(self, id, record, table="Organization"):
         try:
             # [ ] Deactivate organization -> NO DELETION  (user cannot add new PatientBill for new organization)
@@ -505,11 +505,11 @@ api.add_resource(Transactions, "/transactions")
 class Transaction(Resource):
     # [ ] Fill AuditLog Table before applying changes
     # [ ] Changing Organization_id will require reversal of previous transaction, reinstation of PaidBills, and re-allocation of PatientBills
-    @validation
+    @validate_record
     def patch(self, id, record, table="Transaction"):
         pass
 
-    @validation
+    @validate_record
     def get(self, id, record, table="Transaction"):
         pass
 
