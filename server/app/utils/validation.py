@@ -1,3 +1,6 @@
+from pydantic import EmailStr, ValidationError
+from pydantic_core import PydanticCustomError
+
 # Password validation
 # Checks if password is long enough, contains uppercase and lowercase letters, and has a number
 def validate_password(
