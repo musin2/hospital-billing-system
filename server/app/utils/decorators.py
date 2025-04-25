@@ -1,4 +1,13 @@
 from app.models import Adjustment
+from app.models import AuditLog
+from app.models import Organization
+from app.models import PaidBill
+from app.models import PatientBill
+from app.models import Transaction
+from app.models import User
+from app.models import VoidBill
+from flask import make_response
+from functools import wraps
 
 # Function that validates the object passed from the validation decorator
 def check_record(object):
@@ -24,7 +33,7 @@ def check_record(object):
     return None
 
 # Decorator function for validation when looking up records with URL parameter
-def validation(funct):
+def validate_record(funct):
     @wraps(funct)
     def wrapper(*args, **kwargs):
         id = kwargs.get("id")
