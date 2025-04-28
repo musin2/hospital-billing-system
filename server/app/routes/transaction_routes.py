@@ -1,5 +1,6 @@
 from app.utils import validate_record
 from flask_restx import Resource
+from app.extensions import api
 
 class Transactions(Resource):
     def get():
