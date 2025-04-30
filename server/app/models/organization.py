@@ -4,9 +4,6 @@ from sqlalchemy.orm import validates
 from decimal import Decimal
 from enum import Enum
 
-class OrganizationType(Enum):
-    insurance = "Insurance Company"
-    corporation = "Company / Corporation"
 
 class Organization(db.Model, SerializerMixin):
     __tablename__ = "organizations"
