@@ -1,12 +1,8 @@
 from app.extensions import db
-from enum import Enum
+from app.utils.enums import TransactionType
 from sqlalchemy_serializer import SerializerMixin
 from sqlalchemy.orm import validates
 from sqlalchemy import CheckConstraint
-
-class TransactionType(Enum):
-    payment = "payment"
-    refund = "refund"
 
 
 # Transactions table (=many) - Transactions on total bill for an organization [full or partial payments]
