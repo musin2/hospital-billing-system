@@ -32,8 +32,11 @@ class User(db.Model, SerializerMixin):
             raise ValueError(f"Invalid Role: {user_role}")
         return user_role
 
-    serialize_rules = (
-        "-logs.user",
-        "-logs",
-        "-adjustments",
-    )  # Exclude user.logs & user.adjustments
+    # serialize_rules = (
+    #     "-logs.user",
+    #     "-logs",
+    #     "-adjustments",
+    #     "-voids",
+    #     "-password",
+    # )  # Exclude user.logs & user.adjustments
+    serialize_only = ("user_id","user_name","user_role","email")
