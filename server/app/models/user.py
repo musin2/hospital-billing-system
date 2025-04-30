@@ -1,11 +1,7 @@
 from app.extensions import db
 from sqlalchemy_serializer import SerializerMixin
 from sqlalchemy.orm import validates
-from enum import Enum
-
-class UserRole(Enum):
-    admin = "admin"  # can do employee tasks + make adjustments & void bills
-    employee = "employee"  # can add bill, add transaction, edit non-financial data
+from app.utils.enums import UserRole
 
 
 # Users Table
