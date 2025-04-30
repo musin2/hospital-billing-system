@@ -1,5 +1,4 @@
 from app.extensions import db
-from enum import Enum
 from sqlalchemy import CheckConstraint
 from sqlalchemy.sql import func
 from sqlalchemy_serializer import SerializerMixin

@@ -2,7 +2,7 @@ from app.extensions import db
 from sqlalchemy_serializer import SerializerMixin
 from sqlalchemy.orm import validates
 from decimal import Decimal
-from enum import Enum
+from app.utils.enums import OrganizationType
 
 
 class Organization(db.Model, SerializerMixin):
