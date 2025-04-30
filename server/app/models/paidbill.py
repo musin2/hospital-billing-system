@@ -5,21 +5,6 @@ from sqlalchemy.sql import func
 from sqlalchemy_serializer import SerializerMixin
 from decimal import Decimal
 
-class BillType(Enum):
-    medical = "Medical"
-    surgical = "Surgical"
-
-class GenderOption(Enum):
-    male = "Male"
-    female = "Female"
-    other = "Not specified"
-
-class BillStatus(Enum):
-    paid = "paid"
-    unpaid = "unpaid"
-    partially_paid = "partially_paid"
-    void = "void"  # Errored bill (move to voided bills table then create a new one)
-
 
 # Records PatientBill after full payment (=many)
 class PaidBill(db.Model, SerializerMixin):
