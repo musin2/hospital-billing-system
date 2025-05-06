@@ -1,5 +1,4 @@
-from pydantic import EmailStr, ValidationError
-from pydantic_core import PydanticCustomError
+from email_validator import validate_email as check_email, EmailNotValidError
 
 # Password validation
 # Checks if password is long enough, contains uppercase and lowercase letters, and has a number
@@ -26,7 +25,8 @@ def validate_password(
 # Email Validation
 def validate_email(email: str) -> tuple[bool, str]:
     try:
-        EmailStr.validate(email)  # Checks email format and DNS MX record
+        # Check format and optionally, the domain with (check_deliverability=True)
+        valid = check_email(email, check_deliverability=True)
         return True, ""
-    except PydanticCustomError as e:
+    except EmailNotValidError as e:
         return False, str(e)
