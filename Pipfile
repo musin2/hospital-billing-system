@@ -11,6 +11,7 @@ flask-restx = "*"
 pyjwt = "*"
 python-dotenv = "*"
 flask-migrate = "*"
+pydantic = {extras = ["email"], version = "*"}
 
 [dev-packages]
 

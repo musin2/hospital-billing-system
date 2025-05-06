@@ -1,24 +1,24 @@
 from werkzeug.security import generate_password_hash
-from models import (
-    db,
-    User,
-    PatientBill,
-    Organization,
+from app.models import (
     PaidBill,
     Transaction,
     VoidBill,
     Adjustment,
     AuditLog,
-    UserRole,
-    BillType,
-    OrganizationType,
-    GenderOption,
-    BillStatus,
-    TransactionType,
+    Organization,
+    PatientBill,
+    PaidBill,
+    Transaction,
+    User,
+    VoidBill
 )
+from app.utils.enums import BillType,BillStatus,GenderOption,OrganizationType,TransactionType,UserRole
+from app.extensions import db
 from datetime import datetime, date
 from decimal import Decimal
-from app import app
+from app import create_app
+
+app = create_app()
 
 def seed_data():
     with app.app_context():
