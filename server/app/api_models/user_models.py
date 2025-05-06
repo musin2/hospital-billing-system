@@ -14,3 +14,10 @@ create_user_model = api.model('UserCreate', {
     'email': fields.String(required=True, description='User email address'),
     'password': fields.String(required=True, description='User password'),
 })
+
+patch_user_model = api.model("UserPatch", {
+    "user_name": fields.String(required=False, description='Full name of the user'),
+    "user_role": fields.String(required=False, description='Role of the user'),
+    "email": fields.String(required=False, description='User email address'),
+    "password": fields.String(required=False, description='User password'),
+})
