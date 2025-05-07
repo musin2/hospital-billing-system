@@ -1,52 +1,37 @@
-from flask_restx import Resource
+from flask_restx import Resource,Namespace
 from app.extensions import api
 from app.utils.decorators import validate_record
+from flask import Blueprint
+from app.api_models.bill_models import patient_bill_model,create_patient_bill_model
+from app.services.bill_service import get_all_bills
 
-# Get all bills & create a new bill
+bill_bp = Blueprint("Bills",__name__)
+bill_ns = Namespace("Bills", description="Bill Operations", path="/")
+
+@bill_ns.route("/bills")
 class Bills(Resource):
-    # Get all bills
+    # Get all Bills
     def get(self):
-        pass
+        """List all bills"""
+        return get_all_bills()
 
     # Create a new bill
     def post(self):
         pass
 
-
-api.add_resource(Bills, "/bills")
-
-
-# [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 # Patch, delete & get individual bill using id parameter
+@bill_ns.route("/bill/<int:id>")
 class Bill(Resource):
-
-    # [x] Updated at => func.now() - database level
-    # [ ] void billl ->  Move Bill to VoidBill , fill adjustments / AuditLog table
-    # [ ] Delete voided PatientBill ?
-    # Organization.outstanding_balance - void Bill amount
-    # Bill is void if the wrong patient or amount was recorded
-    # Bill can only be voided by an admin (controlled visibility?)
-    # ** Case of previous_balance & final_balance in 'Transactions' table???? (*adjustment?)
-    # [ ] Non-financial data editing
-    # [ ] Fill AuditLog table before applying the changes
-    # [ ] Recalculate 'Organization' outsanding_balance when org_id is changed (subtract amount from previous, add amount to new org)
-    # [ ] Bill org cannot be changed if bill_status = "paid" / "partially_paid"
-    # Payment needs to be reversed then status changed to unpaid
+    # Get an individual bill
     @validate_record
-    def patch(self, id, record, table="PatientBill"):
+    def get(self):
         pass
 
+    # Edit a bill (non-financial data only - Admin access)
     @validate_record
-    def delete(self, id, record, table="PatientBill"):
-        # [ ] Cannot Delete Bill??
+    def patch(self):
         pass
 
-    @validate_record
-    def get(self, id, record, table="PatientBill"):
-        pass
-
-
-api.add_resource(Bill, "/bill/<int:id>")
 
 # [ ] Modify functions that use validation decorator with table_name & all url parameters = id
 # For duplicate / invalid bills,
