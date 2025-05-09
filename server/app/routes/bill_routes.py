@@ -3,7 +3,7 @@ from app.extensions import api
 from app.utils.decorators import validate_record
 from flask import Blueprint
 from app.api_models.bill_models import patient_bill_model,create_patient_bill_model
-from app.services.bill_service import get_all_bills
+from app.services.bill_service import get_all_bills,create_new_bill
 
 bill_bp = Blueprint("Bills",__name__)
 bill_ns = Namespace("Bills", description="Bill Operations", path="/")
@@ -16,8 +16,9 @@ class Bills(Resource):
         return get_all_bills()
 
     # Create a new bill
+    @bill_ns.expect(create_patient_bill_model,validate=True)
     def post(self):
-        pass
+        return create_new_bill()
 
 # Patch, delete & get individual bill using id parameter
 @bill_ns.route("/bill/<int:id>")
