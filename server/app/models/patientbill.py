@@ -18,7 +18,7 @@ class PatientBill(db.Model, SerializerMixin):
 
     bill_id = db.Column(db.Integer, primary_key=True)
     # Inpatient / Outpatient number
-    patient_number = db.Column(db.String(50), nullable=False, unique=True, index=True)
+    patient_number = db.Column(db.String(50), nullable=False,index=True)
     # Personal number (ID / Passport)
     patient_id = db.Column(db.String(15), nullable=False)
     patient_name = db.Column(db.String(255), nullable=False)
