@@ -3,6 +3,7 @@ from enum import Enum
 class BillType(Enum):
     medical = "Medical"
     surgical = "Surgical"
+    maternity = "Maternity"
 
 class GenderOption(Enum):
     male = "Male"
