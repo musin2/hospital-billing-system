@@ -1,8 +1,10 @@
 from flask import make_response, request
-from datetime import datetime
+from datetime import datetime, timezone
+from dateutil.relativedelta import relativedelta
 from app.models.patientbill import PatientBill
 from app.utils.serialization import serialize_bill
 from app.utils.enums import BillStatus
+from app.models.organization import Organization
 from app.extensions import db
 
 
@@ -40,7 +42,6 @@ def create_new_bill():
             if field not in data:
                 return make_response({"error": f"Missing data: {field}"}, 400)
 
-        # [ ] Calculate age from birthdate / Calculate birthdate from age
         patient_number = data["patient_number"]
         patient_id = data["patient_id"]
         patient_name = data["patient_name"]
@@ -59,11 +60,28 @@ def create_new_bill():
         print(bill_type)
         print(patient_gender)
         amount = data["amount"]
-        paid_amount = data["paid_amount"]
         # created_at & updated_at are set to current time at database level (default / onupdate = func.now())
-        
+
+        # Validate if one of the two is present
         if patient_age is None and patient_birthdate is None:
-            return make_response({"error":"Patient's age or birthdate must be included"},400) 
+            return make_response(
+                {"error": "Patient's age or birthdate must be included"}, 400
+            )
+
+        # [x] Calculate age from birthdate / Calculate birthdate from age
+        if patient_age is not None and patient_birthdate is None:
+            current_year = datetime.now(timezone.utc).year
+            birth_year = current_year - patient_age
+            patient_birthdate = f"{birth_year}-1-1"
+            print(f"Calculated birthdate: {patient_birthdate}")
+
+        if patient_birthdate is not None and patient_age is None:
+            current_date = datetime.now(timezone.utc).date()
+            birthdate = datetime.strptime(patient_birthdate, "%Y-%m-%d")
+            age_delta = relativedelta(current_date,birthdate)
+            patient_age = age_delta.years
+            print(f"Calculated age: {patient_age}")
+
         new_bill = PatientBill(
             patient_number=patient_number,
             patient_id=patient_id,
@@ -76,9 +94,14 @@ def create_new_bill():
             organization_id=organization_id,
             bill_type=bill_type,
             amount=amount,
-            status=BillStatus.unpaid.value
+            status=BillStatus.unpaid.value,
         )
         # [ ] update outstanding_balance in 'Organization' table
+        current_organization = Organization.query.filter_by(org_id = organization_id).first()
+        if current_organization is None:
+            return make_response({"error": "Organization not found"}, 404)
+        current_organization.outstanding_balance += amount
+
         db.session.add(new_bill)
         db.session.commit()
         response_body = {"message": "Bill created successfully!"}
