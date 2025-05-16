@@ -16,7 +16,7 @@ class Bills(Resource):
         return get_all_bills()
 
     # Create a new bill
-    @bill_ns.expect(create_patient_bill_model,validate=True)
+    @bill_ns.expect(create_patient_bill_model,validate=False)
     def post(self):
         return create_new_bill()
 
