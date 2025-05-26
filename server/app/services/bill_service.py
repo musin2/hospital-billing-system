@@ -6,6 +6,7 @@ from app.utils.serialization import serialize_bill
 from app.utils.enums import BillStatus
 from app.models.organization import Organization
 from app.extensions import db
+from app.utils.validation import validate_and_format_number
 
 
 def get_all_bills():
@@ -37,7 +38,7 @@ def create_new_bill():
             "bill_type",
             "amount",
         ]
-        # [ ] additional validation in database ? with column data types
+        # [x] additional validation in database ? with column data types
         for field in required_fields:
             if field not in data:
                 return make_response({"error": f"Missing data: {field}"}, 400)
@@ -48,11 +49,14 @@ def create_new_bill():
         patient_gender = data["patient_gender"]
         patient_age = data["patient_age"]
         patient_birthdate = data["patient_birthdate"]
-        # [ ] phone number format 712356789 from form
-        # add country code
-        # number = country code(select menu??) + form input
-        # [ ] Validate phone number lenght
-        patient_phone_number = data["patient_phone_number"]
+
+        # [ ] phone number format 0712356789 / +254712356789 from frontend
+        # [x] Validate phone number
+        try:
+            patient_phone_number = validate_and_format_number(data["patient_phone_number"])
+        except ValueError as e:
+            return make_response({"error":str(e)},400)
+        
         bill_date = data["bill_date"]
         organization_id = data["organization_id"]
         # [ ] Use Enum???
