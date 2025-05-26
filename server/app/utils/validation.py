@@ -1,4 +1,7 @@
 from email_validator import validate_email as check_email, EmailNotValidError
+import phonenumbers
+from phonenumbers.phonenumberutil import NumberParseException
+
 
 # Password validation
 # Checks if password is long enough, contains uppercase and lowercase letters, and has a number
@@ -30,3 +33,17 @@ def validate_email(email: str) -> tuple[bool, str]:
         return True, ""
     except EmailNotValidError as e:
         return False, str(e)
+
+# Phone number validation
+def validate_and_format_number(raw_number):
+    try:
+        # parse number
+        parsed = phonenumbers.parse(raw_number,"KE")
+        # Check if number is valid
+        if phonenumbers.is_valid_number(parsed):
+            # Return in international format (+2547...)
+            return phonenumbers.format_number(parsed,phonenumbers.PhoneNumberFormat.E164)
+        else:
+            raise ValueError(f"Invalid phone number:{raw_number}")
+    except NumberParseException:
+        raise ValueError("Invalid input format")
