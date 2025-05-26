@@ -116,8 +116,11 @@ def create_new_bill():
         return make_response({"error": str(e)}, 500)
 
 
-def get_bill_by_id():
-    pass
+def get_bill_by_id(record):
+    try:
+        return make_response(serialize_bill(record),200)
+    except Exception as e:
+        return make_response({"error":str(e)},500)
 
 
 def edit_bill():
