@@ -3,7 +3,7 @@ from app.extensions import api
 from app.utils.decorators import validate_record
 from flask import Blueprint
 from app.api_models.bill_models import patient_bill_model,create_patient_bill_model
-from app.services.bill_service import get_all_bills,create_new_bill
+from app.services.bill_service import get_all_bills,create_new_bill,get_bill_by_id
 
 bill_bp = Blueprint("Bills",__name__)
 bill_ns = Namespace("Bills", description="Bill Operations", path="/")
@@ -18,19 +18,21 @@ class Bills(Resource):
     # Create a new bill
     @bill_ns.expect(create_patient_bill_model,validate=False)
     def post(self):
+        """Create new Patient Bill"""
         return create_new_bill()
 
 # Patch, delete & get individual bill using id parameter
 @bill_ns.route("/bill/<int:id>")
 class Bill(Resource):
-    # Get an individual bill
-    @validate_record
-    def get(self):
-        pass
+    # @bill_ns.marshal_with(patient_bill_model)
+    @validate_record("PatientBill")
+    def get(self,id,record):
+        """Get an individual bill"""
+        return get_bill_by_id(record)
 
     # Edit a bill (non-financial data only - Admin access)
-    @validate_record
-    def patch(self):
+    @validate_record("PatientBill")
+    def patch(self,id,record):
         pass
 
 
