@@ -12,6 +12,7 @@ pyjwt = "*"
 python-dotenv = "*"
 flask-migrate = "*"
 python-dateutil = "*"
+phonenumberslite = "*"
 
 [dev-packages]
 
