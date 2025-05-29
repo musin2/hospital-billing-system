@@ -2,8 +2,8 @@ from flask_restx import Resource,Namespace
 from app.extensions import api
 from app.utils.decorators import validate_record
 from flask import Blueprint
-from app.api_models.bill_models import patient_bill_model,create_patient_bill_model
-from app.services.bill_service import get_all_bills,create_new_bill,get_bill_by_id
+from app.api_models.bill_models import patient_bill_model,create_patient_bill_model,edit_patient_bill_model
+from app.services.bill_service import get_all_bills,create_new_bill,get_bill_by_id,edit_bill
 
 bill_bp = Blueprint("Bills",__name__)
 bill_ns = Namespace("Bills", description="Bill Operations", path="/")
@@ -32,8 +32,10 @@ class Bill(Resource):
 
     # Edit a bill (non-financial data only - Admin access)
     @validate_record("PatientBill")
+    @bill_ns.expect(edit_patient_bill_model,validation=False)
     def patch(self,id,record):
-        pass
+        """Edit Bill"""
+        return edit_bill(record)
 
 
 # [ ] Modify functions that use validation decorator with table_name & all url parameters = id
